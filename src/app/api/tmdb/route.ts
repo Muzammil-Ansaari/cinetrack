@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
   const mediaType = searchParams.get("mediaType") || "movie"; // 'movie' or 'tv'
   const trending = searchParams.get("trending");
   const page = searchParams.get("page") || "1";
+  const section = searchParams.get("section");
 
   // Helper function to auto-categorize movies, tv shows, anime, and animation
   function getMediaCategory(item: any): string {
