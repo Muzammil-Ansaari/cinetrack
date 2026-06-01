@@ -105,15 +105,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (friendshipsData) {
-      setFriendships(friendshipsData as Friendship[]);
-      localStorage.setItem("cinetrack_cached_friendships", JSON.stringify(friendshipsData));
-      const friendProfiles = friendshipsData.map((f: any) => {
-        const rawFriend = f.requester_id === targetUserId ? f.addressee : f.requester;
-        return Array.isArray(rawFriend) ? rawFriend[0] : rawFriend;
-      }).filter(Boolean) as Profile[];
-      setFriends(friendProfiles);
-      localStorage.setItem("cinetrack_cached_friends", JSON.stringify(friendProfiles));
-    } else {
+  const mappedFriendships: Friendship[] = friendshipsData.map((f: any) => ({
+    ...f,
+    requester: Array.isArray(f.requester)
+      ? f.requester[0]
+      : f.requester,
+    addressee: Array.isArray(f.addressee)
+      ? f.addressee[0]
+      : f.addressee,
+  }));
+
+  setFriendships(mappedFriendships);
+
+  localStorage.setItem(
+    "cinetrack_cached_friendships",
+    JSON.stringify(mappedFriendships)
+  );
+
+  const friendProfiles = mappedFriendships
+    .map((f) =>
+      f.requester_id === targetUserId
+        ? f.addressee
+        : f.requester
+    )
+    .filter((p): p is Profile => p !== undefined);
+
+  setFriends(friendProfiles);
+  localStorage.setItem(
+    "cinetrack_cached_friends",
+    JSON.stringify(friendProfiles)
+  );
+} else {
       setFriendships([]);
       setFriends([]);
     }
@@ -224,40 +246,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshFriends]);
 
   // 🔴 Realtime + polling for instant friend request notifications
-  useEffect(() => {
-    if (!supabase || !user) return;
+ useEffect(() => {
+  if (!supabase || !user) return;
 
-    // Subscribe to ALL changes on the friendships table
-    const channel = supabase
-      .channel(`friendships_realtime_${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "friendships",
-        },
-        () => {
-          refreshFriendsRef.current();
-        }
-      )
-      .subscribe((status) => {
-        // If realtime channel fails to connect, polling covers it
-        if (status === "CHANNEL_ERROR") {
-          console.warn("Realtime channel error — polling will cover updates.");
-        }
-      });
+  const sb = supabase;
 
-    // Polling fallback: refresh every 8 seconds regardless of realtime health
-    const pollInterval = setInterval(() => {
-      refreshFriendsRef.current();
-    }, 8000);
+  const channel = sb
+    .channel(`friendships_realtime_${user.id}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "friendships",
+      },
+      () => {
+        refreshFriendsRef.current();
+      }
+    )
+    .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(pollInterval);
-    };
-  }, [supabase, user?.id]);
+  const pollInterval = setInterval(() => {
+    refreshFriendsRef.current();
+  }, 8000);
+
+  return () => {
+    sb.removeChannel(channel);
+    clearInterval(pollInterval);
+  };
+}, [user?.id]);
 
 
   const signUp = async (

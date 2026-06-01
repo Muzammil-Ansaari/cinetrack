@@ -28,8 +28,14 @@ export default function MovieCard({
   // Find who added this movie
   const addedBy = movie.reviews_json || "Someone";
 
-  const isCustomGradient = movie.poster_path?.startsWith("custom-gradient:");
-  const gradientClass = isCustomGradient ? movie.poster_path?.split(":")[1] : "";
+const posterPath = movie.poster_path ?? "";
+
+const isCustomGradient =
+  posterPath.startsWith("custom-gradient:");
+
+const gradientClass = isCustomGradient
+  ? posterPath.split(":")[1] ?? ""
+  : "";
 
   const getGradientBg = (colorName: string) => {
     switch (colorName) {
