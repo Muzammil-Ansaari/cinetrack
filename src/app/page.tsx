@@ -562,7 +562,7 @@ function DashboardInner() {
 
     for (let i = 0; i < finalItems.length; i++) {
       const { tmdbMovie, watched } = finalItems[i];
-      const title = tmdbMovie.title || tmdbMovie.name;
+      const title = tmdbMovie.title || tmdbMovie.name || "Untitled Movie";
 
       // Notify progress tracker
       onProgress(i + 1, finalItems.length, title);
