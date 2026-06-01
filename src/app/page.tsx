@@ -137,7 +137,7 @@ function DashboardInner() {
 
     return () => {
       console.log("CineTrack Realtime: Cleaning up global sync subscription...");
-      supabase.removeChannel(channel);
+      supabase?.removeChannel(channel);
     };
   }, [user?.id, authFriends]);
 
