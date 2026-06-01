@@ -1320,7 +1320,6 @@ function DashboardInner() {
                   { label: "Animated", value: "Animated Movie" },
                   { label: "Anime", value: "Anime" }
                 ].map((format) => {
-                  const isActive = unwackedActiveFormat => unwatchedCategoryFilter === format.value;
                   const isActiveFormat = unwatchedCategoryFilter === format.value;
                   return (
                     <button
