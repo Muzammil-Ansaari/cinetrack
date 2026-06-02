@@ -15,7 +15,8 @@ import {
   Users,
   LogOut,
   Bell,
-  X
+  X,
+  ThumbsDown
 } from "lucide-react";
 import { Movie, TMDBMovie } from "@/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -30,7 +31,7 @@ import CustomMovieModal from "@/components/CustomMovieModal";
 
 interface ActivityLog {
   id: string;
-  type: "add" | "watch" | "unwatch" | "delete" | "rate" | "review";
+  type: "add" | "watch" | "unwatch" | "delete" | "rate" | "review" | "decline" | "undecline";
   title: string;
   category: string;
   timestamp: string;
@@ -54,7 +55,7 @@ function DashboardInner() {
   const [showFriendsPanel, setShowFriendsPanel] = useState(false);
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "unwatched" | "watched" | "search_results">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "unwatched" | "watched" | "declined" | "search_results">("dashboard");
   const [toast, setToast] = useState<{ message: string; type: "success" | "warning" | "info" } | null>(null);
   const [isCustomMovieModalOpen, setIsCustomMovieModalOpen] = useState(false);
   
@@ -98,6 +99,7 @@ function DashboardInner() {
   // Local filters for the lists tabs
   const [unwatchedFilter, setUnwatchedFilter] = useState("");
   const [watchedFilter, setWatchedFilter] = useState("");
+  const [declinedFilter, setDeclinedFilter] = useState("");
   const [unwatchedGenreFilter, setUnwatchedGenreFilter] = useState("");
   const [watchedGenreFilter, setWatchedGenreFilter] = useState("");
   const [unwatchedCategoryFilter, setUnwatchedCategoryFilter] = useState("");
@@ -211,6 +213,7 @@ function DashboardInner() {
   }, [myName, mergedFriends]);
 
   const [watchedViewMode, setWatchedViewMode] = useState<"co-watched" | string>("co-watched");
+  const [unwatchedViewMode, setUnwatchedViewMode] = useState<"all" | string>("all");
 
 
 
@@ -254,16 +257,26 @@ function DashboardInner() {
         const watchedByNames = rows.filter((r) => r.watched).map((r) => getUserNameById(r.user_id));
         const watchedByStr = Array.from(new Set(watchedByNames)).sort().join(", ");
 
+        const declinedByNames = rows.filter((r) => r.declined).map((r) => getUserNameById(r.user_id));
+        const declinedByStr = Array.from(new Set(declinedByNames)).sort().join(", ");
+
         const pendingNames = friends.filter((name) => !watchedByNames.includes(name));
         const allHaveWatched = pendingNames.length === 0;
 
-        const addedByUserId = unwatchedRow?.user_id || rows[rows.length - 1]?.user_id;
+        const oldestRow = [...rows].sort((a, b) => {
+          const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return timeA - timeB;
+        })[0] || rows[rows.length - 1];
+
+        const addedByUserId = oldestRow?.user_id;
         const addedByName = getUserNameById(addedByUserId);
 
         mergedMovies.push({
           ...canonicalRow,
           watched: allHaveWatched,
           watched_by: watchedByStr,
+          declined_by: declinedByStr,
           rating: rows.find((r) => r.user_id === user.id)?.rating ?? canonicalRow.rating,
           review: rows.find((r) => r.user_id === user.id)?.review ?? canonicalRow.review,
           ratings_json: JSON.stringify(
@@ -705,6 +718,7 @@ function DashboardInner() {
         watched_by: "",
         ratings_json: "{}",
         reviews_json: "{}",
+        created_at: targetMovie.created_at || new Date().toISOString(),
       };
 
       const res = await fetch("/api/movies", {
@@ -739,7 +753,76 @@ function DashboardInner() {
     }
   };
 
-  // 2b. Collaborative Season Completion Toggle
+  // 2b. Collaborative Decline Toggle — hides the movie from the current user's unwatched list
+  const handleToggleDeclined = async (id: string, friendName: string) => {
+    const targetMovie = movies.find((m) => m.id === id);
+    if (!targetMovie) return;
+
+    if (friendName !== myName) return;
+
+    const currentDeclinedBy = targetMovie.declined_by
+      ? targetMovie.declined_by.split(", ").filter(Boolean)
+      : [];
+
+    const isMarkingDeclined = !currentDeclinedBy.includes(myName);
+
+    try {
+      const newEntry = {
+        tmdb_id: targetMovie.tmdb_id,
+        title: targetMovie.title,
+        poster_path: targetMovie.poster_path,
+        backdrop_path: targetMovie.backdrop_path,
+        release_year: targetMovie.release_year,
+        runtime: targetMovie.runtime,
+        synopsis: targetMovie.synopsis,
+        watched: targetMovie.watched,
+        declined: isMarkingDeclined,
+        rating: targetMovie.rating,
+        review: targetMovie.review,
+        seasons: targetMovie.seasons,
+        category: targetMovie.category,
+        global_rating: targetMovie.global_rating,
+        genres: targetMovie.genres,
+        user_id: user?.id,
+        watched_by: "",
+        ratings_json: "{}",
+        reviews_json: "{}",
+        created_at: targetMovie.created_at || new Date().toISOString(),
+      };
+
+      const res = await fetch("/api/movies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newEntry)
+      });
+
+      if (!res.ok) throw new Error("Failed to update declined status in MongoDB");
+
+      await refetchMovies();
+      broadcastMovieChange();
+
+      logActivity(
+        isMarkingDeclined ? "decline" : "undecline",
+        targetMovie.title,
+        targetMovie.category,
+        isMarkingDeclined
+          ? "Declined to watch this title"
+          : "Restored title back to Unwatched list"
+      );
+
+      showToast(
+        isMarkingDeclined
+          ? `Moved "${targetMovie.title}" to Declined list!`
+          : `Restored "${targetMovie.title}" to Unwatched.`,
+        "success"
+      );
+    } catch (err) {
+      console.error("Failed to update declined status:", err);
+      showToast("Error updating status.", "warning");
+    }
+  };
+
+  // 2c. Collaborative Season Completion Toggle
   // 3. Delete Movie operation
   const handleDeleteMovie = async (id: string) => {
     const targetMovie = movies.find((m) => m.id === id);
@@ -917,7 +1000,16 @@ function DashboardInner() {
   const baseUnwatchedList = movies.filter((m) => {
     if (m.watched) return false;
     const watchedBy = m.watched_by ? m.watched_by.split(", ").filter(Boolean) : [];
-    return !watchedBy.includes(myName);
+    if (watchedBy.includes(myName)) return false;
+    const declinedBy = m.declined_by ? m.declined_by.split(", ").filter(Boolean) : [];
+    if (declinedBy.includes(myName)) return false;
+    return true;
+  });
+
+  // DECLINED: movies that the current user personally declined (not interested / thumbs down)
+  const baseDeclinedList = movies.filter((m) => {
+    const declinedBy = m.declined_by ? m.declined_by.split(", ").filter(Boolean) : [];
+    return declinedBy.includes(myName);
   });
 
   // MY WATCHED: movies where the current user personally has watched=true
@@ -954,6 +1046,14 @@ function DashboardInner() {
 
   // Filter lists based on type, genres, formats and local searches
   const unwatchedList = baseUnwatchedList
+    .filter((m) => {
+      if (unwatchedViewMode === "all") return true;
+      const creatorName = m.reviews_json || "Unknown";
+      if (unwatchedViewMode === "Me" || unwatchedViewMode === myName) {
+        return creatorName === myName;
+      }
+      return creatorName === unwatchedViewMode;
+    })
     .filter((m) => m.title.toLowerCase().includes(unwatchedFilter.trim().toLowerCase()))
     .filter((m) => {
       if (!unwatchedGenreFilter) return true;
@@ -974,6 +1074,9 @@ function DashboardInner() {
       if (!watchedCategoryFilter) return true;
       return m.category === watchedCategoryFilter;
     });
+
+  const declinedList = baseDeclinedList
+    .filter((m) => m.title.toLowerCase().includes(declinedFilter.trim().toLowerCase()));
 
   const totalWatchedRuntime = baseMyWatchedList.reduce((acc, curr) => acc + (curr.runtime || 0), 0);
 
@@ -1050,6 +1153,26 @@ function DashboardInner() {
               <span className="flex items-center gap-3">
                 <Trophy className="w-4 h-4" />
                 Watched Collection
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab("declined");
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "declined"
+                  ? "bg-zinc-900 text-white border-l-2 border-red-500 pl-4"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/40"
+              }`}
+            >
+              <span className="flex items-center gap-3">
+                <ThumbsDown className="w-4 h-4" />
+                Not Interested
+              </span>
+              <span className="text-[9px] font-extrabold px-2 py-0.5 bg-red-500/10 text-red-400 border border-red-500/10 rounded-full">
+                {baseDeclinedList.length}
               </span>
             </button>
 
@@ -1308,6 +1431,38 @@ function DashboardInner() {
               </div>
             </div>
 
+            {/* Co-Watch Shelf View Selector for Unwatched */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
+              <span className="text-[8.5px] font-extrabold text-zinc-550 uppercase tracking-widest mr-1.5 flex items-center gap-1 flex-shrink-0">
+                <Users className="w-3.5 h-3.5 text-amber-400" /> Shelf Mode:
+              </span>
+              
+              <button
+                onClick={() => setUnwatchedViewMode("all")}
+                className={`px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95 duration-200 flex-shrink-0 ${
+                  unwatchedViewMode === "all"
+                    ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
+                    : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                }`}
+              >
+                👥 All Unwatched {unwatchedViewMode === "all" ? `(${unwatchedList.length})` : ""}
+              </button>
+
+              {(friends.length > 0 ? friends : ["Me"]).map((friend) => (
+                <button
+                  key={friend}
+                  onClick={() => setUnwatchedViewMode(friend)}
+                  className={`px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95 duration-200 flex-shrink-0 ${
+                    unwatchedViewMode === friend
+                      ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
+                      : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  👤 {friend === myName || friend === "Me" ? "Added By Me" : `Added By ${friend}`} {unwatchedViewMode === friend ? `(${unwatchedList.length})` : ""}
+                </button>
+              ))}
+            </div>
+
             {/* Premium modern clickable capsule pill chips */}
             <div className="flex flex-col gap-3.5 py-2.5 border-b border-zinc-900 pb-5 select-none">
               {/* Format pills */}
@@ -1331,7 +1486,7 @@ function DashboardInner() {
                           : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
                       }`}
                     >
-                      {format.label}
+                      {format.label}{isActiveFormat ? ` (${unwatchedList.length})` : ""}
                     </button>
                   );
                 })}
@@ -1340,7 +1495,7 @@ function DashboardInner() {
               {/* Genre pills */}
               {unwatchedGenres.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 items-center">
-                  <span className="text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest mr-2 select-none">Genre:</span>
+                  <span className="text-[9px] font-extrabold text-zinc-550 uppercase tracking-widest mr-2 select-none">Genre:</span>
                   <button
                     onClick={() => setUnwatchedGenreFilter("")}
                     className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
@@ -1349,7 +1504,7 @@ function DashboardInner() {
                         : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
                     }`}
                   >
-                    All Genres
+                    All Genres {unwatchedGenreFilter === "" ? `(${unwatchedList.length})` : ""}
                   </button>
                   {unwatchedGenres.map((genre) => {
                     const isActive = unwatchedGenreFilter === genre;
@@ -1363,7 +1518,7 @@ function DashboardInner() {
                             : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
                         }`}
                       >
-                        {genre}
+                        {genre}{isActive ? ` (${unwatchedList.length})` : ""}
                       </button>
                     );
                   })}
@@ -1398,7 +1553,7 @@ function DashboardInner() {
                     friends={friends}
                     myName={myName}
                     onToggleFriendWatched={handleToggleFriendWatched}
-                    onDeleteMovie={handleDeleteMovie}
+                    onToggleDeclined={handleToggleDeclined}
                     onUpdateFriendRating={handleUpdateFriendRating}
                     onUpdateFriendReview={handleUpdateFriendReview}
                   />
@@ -1447,7 +1602,7 @@ function DashboardInner() {
                     : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
                 }`}
               >
-                👥 {friends.length === 2 ? "Watched by Both" : friends.length > 2 ? "Watched by Everyone" : "Watched by Me"}
+                👥 {friends.length === 2 ? "Watched by Both" : friends.length > 2 ? "Watched by Everyone" : "Watched by Me"} {watchedViewMode === "co-watched" ? `(${watchedList.length})` : ""}
               </button>
 
               {(friends.length > 0 ? friends : ["Me"]).map((friend) => (
@@ -1456,11 +1611,11 @@ function DashboardInner() {
                   onClick={() => setWatchedViewMode(friend)}
                   className={`px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95 duration-200 flex-shrink-0 ${
                     watchedViewMode === friend
-                      ? "bg-zinc-900 text-emerald-450 border border-emerald-500/20 font-bold shadow-sm shadow-emerald-500/5"
-                      : "bg-zinc-900/50 border border-zinc-900/60 text-zinc-500 hover:text-zinc-350"
+                      ? "bg-emerald-500 text-zinc-950 font-bold shadow-md shadow-emerald-500/10"
+                      : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
                   }`}
                 >
-                  👤 {friend === myName || friend === "Me" ? "My Watch List" : `${friend}'s Watch List`}
+                  👤 {friend === myName || friend === "Me" ? "My Watch List" : `${friend}'s Watch List`} {watchedViewMode === friend ? `(${watchedList.length})` : ""}
                 </button>
               ))}
             </div>
@@ -1488,7 +1643,7 @@ function DashboardInner() {
                           : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
                       }`}
                     >
-                      {format.label}
+                      {format.label}{isActiveFormat ? ` (${watchedList.length})` : ""}
                     </button>
                   );
                 })}
@@ -1506,7 +1661,7 @@ function DashboardInner() {
                         : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
                     }`}
                   >
-                    All Genres
+                    All Genres {watchedGenreFilter === "" ? `(${watchedList.length})` : ""}
                   </button>
                   {watchedGenres.map((genre) => {
                     const isActive = watchedGenreFilter === genre;
@@ -1520,7 +1675,7 @@ function DashboardInner() {
                             : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
                         }`}
                       >
-                        {genre}
+                        {genre}{isActive ? ` (${watchedList.length})` : ""}
                       </button>
                     );
                   })}
@@ -1555,7 +1710,69 @@ function DashboardInner() {
                     friends={friends}
                     myName={myName}
                     onToggleFriendWatched={handleToggleFriendWatched}
-                    onDeleteMovie={handleDeleteMovie}
+                    onToggleDeclined={handleToggleDeclined}
+                    onUpdateFriendRating={handleUpdateFriendRating}
+                    onUpdateFriendReview={handleUpdateFriendReview}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* VIEW 3.5: DECLINED / NOT INTERESTED LIST */}
+        {activeTab === "declined" && (
+          <div className="flex flex-col gap-5 animate-fade-in">
+            {/* Library Header Panel */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-900 pb-4 select-none">
+              <div>
+                <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                  👎 Not Interested
+                </h2>
+                <p className="text-[10px] text-zinc-500 mt-0.5">Movies and TV shows you have personally declined from your main queue.</p>
+              </div>
+
+              {/* Local Search within Declined list */}
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                <input
+                  type="text"
+                  value={declinedFilter}
+                  onChange={(e) => setDeclinedFilter(e.target.value)}
+                  placeholder="Search not interested..."
+                  className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-red-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
+                />
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="py-32 flex flex-col justify-center items-center text-zinc-550 gap-2">
+                <RefreshCw className="w-6 h-6 animate-spin text-zinc-600" />
+                <span className="text-xs font-semibold">Syncing list...</span>
+              </div>
+            ) : declinedList.length === 0 ? (
+              <div className="py-24 text-center select-none animate-fade-in">
+                <div className="w-12 h-12 rounded-2xl bg-zinc-900/50 flex items-center justify-center mx-auto text-zinc-500 text-xl border border-zinc-850 mb-3">
+                  🗑️
+                </div>
+                <h4 className="text-sm font-bold text-zinc-400">No declined items found</h4>
+                <p className="text-xs text-zinc-500 max-w-sm mx-auto mt-1 leading-relaxed">
+                  {declinedFilter
+                    ? `No declined items match "${declinedFilter}".`
+                    : "You haven't marked any movie/series as 'Not Interested' yet!"}
+                </p>
+              </div>
+            ) : (
+              /* High-end Multi-column Grid Layout (2 columns on md, 3 on xl) */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {declinedList.map((movie) => (
+                  <MovieCard
+                    key={movie.id}
+                    movie={movie}
+                    friends={friends}
+                    myName={myName}
+                    onToggleFriendWatched={handleToggleFriendWatched}
+                    onToggleDeclined={handleToggleDeclined}
                     onUpdateFriendRating={handleUpdateFriendRating}
                     onUpdateFriendReview={handleUpdateFriendReview}
                   />

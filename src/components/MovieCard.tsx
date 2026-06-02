@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Film, Check, Trash2 } from "lucide-react";
+import { Film, Check, ThumbsDown } from "lucide-react";
 import { Movie } from "@/types";
 
 interface MovieCardProps {
@@ -9,7 +9,7 @@ interface MovieCardProps {
   friends: string[];
   myName: string;
   onToggleFriendWatched: (id: string, friendName: string) => Promise<void>;
-  onDeleteMovie: (id: string) => Promise<void>;
+  onToggleDeclined: (id: string, friendName: string) => Promise<void>;
   onUpdateFriendRating: (id: string, friendName: string, rating: number) => Promise<void>;
   onUpdateFriendReview: (id: string, friendName: string, review: string) => Promise<void>;
 }
@@ -19,7 +19,7 @@ export default function MovieCard({
   friends,
   myName,
   onToggleFriendWatched,
-  onDeleteMovie,
+  onToggleDeclined,
   onUpdateFriendRating,
   onUpdateFriendReview,
 }: MovieCardProps) {
@@ -65,6 +65,7 @@ const gradientClass = isCustomGradient
 
   // Extract watched and pending friends summaries
   const watchedBy = movie.watched_by ? movie.watched_by.split(", ").filter(Boolean) : [];
+  const declinedBy = movie.declined_by ? movie.declined_by.split(", ").filter(Boolean) : [];
 
   return (
     <article className="flex gap-4 p-4 bg-zinc-900 border border-zinc-800/80 rounded-2xl hover:border-zinc-750 hover:bg-zinc-900/90 transition-all duration-300 shadow-sm group">
@@ -146,14 +147,24 @@ const gradientClass = isCustomGradient
                 </button>
               )}
 
-              {/* Delete Button */}
-              <button
-                onClick={() => onDeleteMovie(movie.id)}
-                className="w-7 h-7 rounded-lg bg-zinc-950 hover:bg-red-500/15 border border-zinc-800 hover:border-red-500/40 text-zinc-600 hover:text-red-400 flex items-center justify-center cursor-pointer transition-all active:scale-90 duration-200 shadow-sm"
-                title="Remove from library"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
+              {/* Decline / Not Interested Button */}
+              {declinedBy.includes(myName) ? (
+                <button
+                  onClick={() => onToggleDeclined(movie.id, myName)}
+                  className="w-7 h-7 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 text-amber-500 flex items-center justify-center cursor-pointer transition-all active:scale-90 duration-200 shadow-sm"
+                  title="You declined this — click to restore"
+                >
+                  <ThumbsDown className="w-3.5 h-3.5 stroke-[3]" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => onToggleDeclined(movie.id, myName)}
+                  className="w-7 h-7 rounded-lg bg-zinc-950 hover:bg-red-500/15 border border-zinc-800 hover:border-red-500/40 text-zinc-650 hover:text-red-400 flex items-center justify-center cursor-pointer transition-all active:scale-90 duration-200 shadow-sm"
+                  title="Not Interested / Decline"
+                >
+                  <ThumbsDown className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
 

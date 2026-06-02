@@ -8,6 +8,7 @@ export interface Movie {
   runtime: number; // in minutes
   synopsis: string | null;
   watched: boolean;
+  declined?: boolean;
   rating: number | null; // 1-5 stars (personal rating)
   review: string | null; // Personal notes
   seasons: number | null; // Number of seasons (for TV Shows / Anime Series)
@@ -15,6 +16,7 @@ export interface Movie {
   global_rating: number | null; // TMDB average rating (e.g., 8.7)
   genres: string | null; // Comma-separated list of genres (e.g., "Crime, Drama")
   watched_by?: string;
+  declined_by?: string;
   ratings_json?: string;
   reviews_json?: string;
   user_id?: string | null;
