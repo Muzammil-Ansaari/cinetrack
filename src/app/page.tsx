@@ -1371,6 +1371,22 @@ function DashboardInner() {
   // MY WATCHED: movies where the current user personally has watched=true
   const baseMyWatchedList = movies.filter((m) => isMovieWatchedByUser(m, myName));
 
+  // MY UNWATCHED: movies owned by me, not yet watched, not declined, and already released
+  const today = new Date().toISOString().split("T")[0];
+  const baseMyUnwatchedList = movies.filter((m) =>
+    isMovieOwnedByUser(m, myName) &&
+    !isMovieWatchedByUser(m, myName) &&
+    !isMovieDeclinedByUser(m, myName) &&
+    !(m.release_date && m.release_date > today)
+  );
+
+  // MY UPCOMING: upcoming movies owned by me, not yet watched, not declined
+  const baseMyUpcomingList = baseUpcomingList.filter((m) =>
+    isMovieOwnedByUser(m, myName) &&
+    !isMovieWatchedByUser(m, myName) &&
+    !isMovieDeclinedByUser(m, myName)
+  );
+
   // COMMON WATCHED: movies where ALL members in the co-watch group have watched
   const baseCommonWatchedList = movies.filter((m) => m.watched);
 
@@ -1515,12 +1531,11 @@ function DashboardInner() {
           {/* Desktop Nav — icon + label pills */}
           <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
             {[
-              { tab: "dashboard",          icon: <LayoutDashboard className="w-3.5 h-3.5" />, label: "Home",     accent: "indigo"   },
-              { tab: "unwatched",          icon: <Compass        className="w-3.5 h-3.5" />, label: "Unwatched", accent: "amber"    },
-              { tab: "upcoming_watchlist", icon: <Calendar       className="w-3.5 h-3.5" />, label: "Upcoming", accent: "amber"    },
-              { tab: "watched",            icon: <Trophy         className="w-3.5 h-3.5" />, label: "Watched",  accent: "emerald"  },
-              { tab: "declined",           icon: <ThumbsDown     className="w-3.5 h-3.5" />, label: "Declined", accent: "red",
-                badge: baseDeclinedList.length > 0 ? baseDeclinedList.length : null },
+              { tab: "dashboard",          icon: <LayoutDashboard className="w-3.5 h-3.5" />, label: "Home",     accent: "indigo", badge: null },
+              { tab: "unwatched",          icon: <Compass        className="w-3.5 h-3.5" />, label: "Unwatched", accent: "amber",  badge: baseMyUnwatchedList.length > 0 ? baseMyUnwatchedList.length : null },
+              { tab: "watched",            icon: <Trophy         className="w-3.5 h-3.5" />, label: "Watched",  accent: "emerald", badge: baseMyWatchedList.length > 0 ? baseMyWatchedList.length : null },
+              { tab: "upcoming_watchlist", icon: <Calendar       className="w-3.5 h-3.5" />, label: "Upcoming", accent: "amber",   badge: baseMyUpcomingList.length > 0 ? baseMyUpcomingList.length : null },
+              { tab: "declined",           icon: <ThumbsDown     className="w-3.5 h-3.5" />, label: "Declined", accent: "red",     badge: baseDeclinedList.length > 0 ? baseDeclinedList.length : null },
             ].map(({ tab, icon, label, accent, badge }) => {
               const isActive = activeTab === tab;
               const accentMap: Record<string, string> = {
@@ -1598,7 +1613,7 @@ function DashboardInner() {
                 >
                   {(profile.display_name || profile.username).slice(0, 2).toUpperCase()}
                 </div>
-                <p className="text-[10px] font-bold text-zinc-200 truncate max-w-[80px] hidden sm:block">
+                <p className="text-[10px] font-bold text-zinc-200 truncate max-w-[65px] xs:max-w-[80px] sm:max-w-[100px] block">
                   {profile.display_name || profile.username}
                 </p>
                 <button
@@ -1617,12 +1632,12 @@ function DashboardInner() {
       {/* ── Mobile Bottom Tab Bar ── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-900 flex items-center justify-around px-2 py-2 select-none">
         {[
-          { tab: "dashboard",          icon: <LayoutDashboard className="w-5 h-5" />, label: "Home"     },
-          { tab: "unwatched",          icon: <Compass        className="w-5 h-5" />, label: "Unwatched" },
-          { tab: "upcoming_watchlist", icon: <Calendar       className="w-5 h-5" />, label: "Upcoming" },
-          { tab: "watched",            icon: <Trophy         className="w-5 h-5" />, label: "Watched"  },
-          { tab: "declined",           icon: <ThumbsDown     className="w-5 h-5" />, label: "Declined" },
-        ].map(({ tab, icon, label }) => {
+          { tab: "dashboard",          icon: <LayoutDashboard className="w-5 h-5" />, label: "Home",     badge: null },
+          { tab: "unwatched",          icon: <Compass        className="w-5 h-5" />, label: "Unwatched", badge: baseMyUnwatchedList.length > 0 ? baseMyUnwatchedList.length : null },
+          { tab: "watched",            icon: <Trophy         className="w-5 h-5" />, label: "Watched",   badge: baseMyWatchedList.length > 0 ? baseMyWatchedList.length : null },
+          { tab: "upcoming_watchlist", icon: <Calendar       className="w-5 h-5" />, label: "Upcoming",  badge: baseMyUpcomingList.length > 0 ? baseMyUpcomingList.length : null },
+          { tab: "declined",           icon: <ThumbsDown     className="w-5 h-5" />, label: "Declined",  badge: baseDeclinedList.length > 0 ? baseDeclinedList.length : null },
+        ].map(({ tab, icon, label, badge }) => {
           const isActive = activeTab === tab;
           return (
             <button
@@ -1632,7 +1647,14 @@ function DashboardInner() {
                 isActive ? "text-indigo-400" : "text-zinc-600 hover:text-zinc-400"
               }`}
             >
-              {icon}
+              <div className="relative">
+                {icon}
+                {badge != null && (
+                  <span className="absolute -top-1 -right-2 bg-indigo-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full leading-none min-w-[14px] text-center">
+                    {badge}
+                  </span>
+                )}
+              </div>
               <span className={`text-[9px] font-extrabold uppercase tracking-wider ${isActive ? "text-indigo-400" : "text-zinc-600"}`}>
                 {label}
               </span>
@@ -1721,7 +1743,7 @@ function DashboardInner() {
             ) : (
               <StatsPanel
                 totalMovies={movies.length}
-                unwatchedCount={baseUnwatchedList.length}
+                unwatchedCount={baseMyUnwatchedList.length}
                 myWatchedCount={baseMyWatchedList.length}
                 coWatchedCount={baseCommonWatchedList.length}
                 totalRuntime={totalWatchedRuntime}

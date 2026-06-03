@@ -45,7 +45,7 @@ export default function StatsPanel({
       color: "indigo",
     },
     {
-      label: "In Queue",
+      label: "Unwatched",
       value: unwatchedCount,
       sub: "Titles yet to watch",
       icon: <BookOpen className="w-4 h-4" />,
@@ -57,13 +57,6 @@ export default function StatsPanel({
       sub: "Finished by you",
       icon: <CheckCircle className="w-4 h-4" />,
       color: "emerald",
-    },
-    {
-      label: "Co-Watched",
-      value: coWatchedCount,
-      sub: "Watched by everyone",
-      icon: <Award className="w-4 h-4" />,
-      color: "violet",
     },
   ];
 
@@ -77,7 +70,7 @@ export default function StatsPanel({
   return (
     <section className="select-none animate-fade-in space-y-4">
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
         {stats.map(({ label, value, sub, icon, color }) => {
           const c = colorMap[color];
           return (
