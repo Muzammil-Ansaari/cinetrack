@@ -191,7 +191,7 @@ export default function MovieCard({
   const isUpcoming = effectiveReleaseDate ? effectiveReleaseDate > today : false;
 
   return (
-    <article className="flex flex-col gap-2 p-2.5 bg-zinc-900/50 hover:bg-zinc-900/80 border border-zinc-800/80 hover:border-indigo-500/25 rounded-2xl transition-all duration-300 shadow-lg group relative overflow-hidden h-full justify-between max-w-[180px] sm:max-w-[200px] w-full mx-auto">
+    <article className="flex flex-col gap-2 p-2.5 bg-zinc-900/50 hover:bg-zinc-900/80 border border-zinc-800/80 hover:border-indigo-500/25 rounded-2xl transition-all duration-300 shadow-lg group relative overflow-hidden h-full justify-between w-full">
       {/* Movie Poster thumbnail */}
       <div 
         onClick={onCardClick}

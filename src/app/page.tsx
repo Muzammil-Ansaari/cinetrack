@@ -168,10 +168,10 @@ function DashboardInner() {
           <ChevronRight className="w-4 h-4" />
         </button>
 
-        {/* Scrollable Container */}
+        {/* Scrollable Container (Grid on mobile, horizontal scroll on desktop) */}
         <div
           id={rowId}
-          className="flex items-stretch gap-4 overflow-x-auto pb-4 pt-1 scrollbar-none scroll-smooth"
+          className="grid grid-cols-2 md:flex md:items-stretch gap-3 md:gap-4 md:overflow-x-auto pb-4 pt-1 md:scrollbar-none md:scroll-smooth"
         >
           {items.map((item) => {
             const year = item.release_date ? item.release_date.split("-")[0] : "N/A";
@@ -187,7 +187,7 @@ function DashboardInner() {
             return (
               <div 
                 key={item.id} 
-                className="w-[160px] sm:w-[180px] flex-shrink-0 bg-zinc-900/50 border border-zinc-800/70 hover:border-indigo-500/30 rounded-2xl overflow-hidden flex flex-col justify-between shadow-md hover:shadow-indigo-500/5 transition-all duration-300 group relative"
+                className="w-full md:w-[180px] md:flex-shrink-0 bg-zinc-900/50 border border-zinc-800/70 hover:border-indigo-500/30 rounded-2xl overflow-hidden flex flex-col justify-between shadow-md hover:shadow-indigo-500/5 transition-all duration-300 group relative"
               >
                 {/* Poster Image / Click Trigger */}
                 <div 
@@ -363,7 +363,7 @@ function DashboardInner() {
 
   // Collaborative Co-Watching — use real auth friends (display names) + self
   // Collaborative Co-Watching — use real auth friends (display names) + self
-  const myName = profile?.display_name || profile?.username || "Me";
+  const myName = user?.display_name || user?.username || "Me";
 
   // Helper to convert user_id to display name
   const getUserNameById = useCallback((uid?: string | null) => {
@@ -1150,7 +1150,7 @@ function DashboardInner() {
   const handleCreateCustomMovie = async (movieData: any) => {
     if (!user) return;
     try {
-      const myName = profile?.display_name || profile?.username || "Me";
+      const myName = user?.display_name || user?.username || "Me";
       
       const newEntry: Movie = {
         id: `custom-${Date.now()}`,
@@ -1567,7 +1567,7 @@ function DashboardInner() {
             })}
 
             {/* Admin — only if privileged */}
-            {(profile?.role === "superadmin" || profile?.role === "admin") && (
+            {(user?.role === "superadmin" || user?.role === "admin") && (
               <button
                 onClick={() => { setActiveTab("admin"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
@@ -1605,20 +1605,25 @@ function DashboardInner() {
             </button>
 
             {/* Avatar + sign-out */}
-            {profile && (
-              <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl bg-zinc-900/40 border border-zinc-800/40">
+            {user && (
+              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-zinc-900/40 border border-zinc-800/40">
                 <div
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-extrabold text-white flex-shrink-0"
-                  style={{ backgroundColor: profile.avatar_color || "#6366f1" }}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white flex-shrink-0 shadow-inner"
+                  style={{ backgroundColor: user.avatar_color || "#6366f1" }}
                 >
-                  {(profile.display_name || profile.username).slice(0, 2).toUpperCase()}
+                  {(user.display_name || user.username || "Me").slice(0, 2).toUpperCase()}
                 </div>
-                <p className="text-[10px] font-bold text-zinc-200 truncate max-w-[65px] xs:max-w-[80px] sm:max-w-[100px] block">
-                  {profile.display_name || profile.username}
-                </p>
+                <div className="flex flex-col text-left leading-tight">
+                  <span className="text-[10px] font-extrabold text-zinc-100 whitespace-nowrap">
+                    {user.display_name}
+                  </span>
+                  <span className="text-[8px] font-bold text-indigo-400 whitespace-nowrap">
+                    @{user.username}
+                  </span>
+                </div>
                 <button
                   onClick={signOut}
-                  className="p-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+                  className="p-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer ml-0.5"
                   title="Sign out"
                 >
                   <LogOut className="w-3 h-3" />
@@ -1629,39 +1634,7 @@ function DashboardInner() {
         </div>
       </header>
 
-      {/* ── Mobile Bottom Tab Bar ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-900 flex items-center justify-around px-2 py-2 select-none">
-        {[
-          { tab: "dashboard",          icon: <LayoutDashboard className="w-5 h-5" />, label: "Home",     badge: null },
-          { tab: "unwatched",          icon: <Compass        className="w-5 h-5" />, label: "Unwatched", badge: baseMyUnwatchedList.length > 0 ? baseMyUnwatchedList.length : null },
-          { tab: "watched",            icon: <Trophy         className="w-5 h-5" />, label: "Watched",   badge: baseMyWatchedList.length > 0 ? baseMyWatchedList.length : null },
-          { tab: "upcoming_watchlist", icon: <Calendar       className="w-5 h-5" />, label: "Upcoming",  badge: baseMyUpcomingList.length > 0 ? baseMyUpcomingList.length : null },
-          { tab: "declined",           icon: <ThumbsDown     className="w-5 h-5" />, label: "Declined",  badge: baseDeclinedList.length > 0 ? baseDeclinedList.length : null },
-        ].map(({ tab, icon, label, badge }) => {
-          const isActive = activeTab === tab;
-          return (
-            <button
-              key={tab}
-              onClick={() => { setActiveTab(tab as any); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all cursor-pointer ${
-                isActive ? "text-indigo-400" : "text-zinc-600 hover:text-zinc-400"
-              }`}
-            >
-              <div className="relative">
-                {icon}
-                {badge != null && (
-                  <span className="absolute -top-1 -right-2 bg-indigo-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full leading-none min-w-[14px] text-center">
-                    {badge}
-                  </span>
-                )}
-              </div>
-              <span className={`text-[9px] font-extrabold uppercase tracking-wider ${isActive ? "text-indigo-400" : "text-zinc-600"}`}>
-                {label}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
+
 
       {/* Friends Panel Slide-Over */}
       {showFriendsPanel && (
@@ -2678,7 +2651,7 @@ function DashboardInner() {
         )}
 
         {/* VIEW 5: ADMIN PANEL */}
-        {activeTab === "admin" && (profile?.role === "superadmin" || profile?.role === "admin") && (
+        {activeTab === "admin" && (user?.role === "superadmin" || user?.role === "admin") && (
           <AdminPanel />
         )}
 
@@ -2709,28 +2682,10 @@ function DashboardInner() {
           }`}
         >
           <Compass className="w-5 h-5" />
-          <span className="text-[9px] font-bold">Queue</span>
-          {baseUnwatchedList.length > 0 && (
+          <span className="text-[9px] font-bold">Unwatched</span>
+          {baseMyUnwatchedList.length > 0 && (
             <span className="absolute top-0 right-1 bg-amber-500 text-zinc-950 text-[8px] font-extrabold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center shadow-sm">
-              {baseUnwatchedList.length}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab("upcoming_watchlist");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
-            activeTab === "upcoming_watchlist" ? "text-amber-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
-          }`}
-        >
-          <Calendar className="w-5 h-5" />
-          <span className="text-[9px] font-bold">Upcoming</span>
-          {baseUpcomingList.length > 0 && (
-            <span className="absolute top-0 right-1 bg-amber-500 text-zinc-950 text-[8px] font-extrabold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center shadow-sm">
-              {baseUpcomingList.length}
+              {baseMyUnwatchedList.length}
             </span>
           )}
         </button>
@@ -2749,6 +2704,24 @@ function DashboardInner() {
           {baseMyWatchedList.length > 0 && (
             <span className="absolute top-0 right-1 bg-emerald-500 text-white text-[8px] font-extrabold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center shadow-sm">
               {baseMyWatchedList.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab("upcoming_watchlist");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
+            activeTab === "upcoming_watchlist" ? "text-amber-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
+          }`}
+        >
+          <Calendar className="w-5 h-5" />
+          <span className="text-[9px] font-bold">Upcoming</span>
+          {baseMyUpcomingList.length > 0 && (
+            <span className="absolute top-0 right-1 bg-amber-500 text-zinc-950 text-[8px] font-extrabold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center shadow-sm">
+              {baseMyUpcomingList.length}
             </span>
           )}
         </button>
@@ -2786,7 +2759,7 @@ function DashboardInner() {
           </button>
         )}
 
-        {(profile?.role === "superadmin" || profile?.role === "admin") && (
+        {(user?.role === "superadmin" || user?.role === "admin") && (
           <button
             onClick={() => {
               setActiveTab("admin");
