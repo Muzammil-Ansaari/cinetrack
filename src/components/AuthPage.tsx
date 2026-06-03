@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Film, Eye, EyeOff, Loader2, User, Mail, Lock, AtSign, Sparkles } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Film, Eye, EyeOff, Loader2, User, Mail, Lock, AtSign, Sparkles, CheckCircle2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 
 type Mode = "signin" | "signup";
@@ -16,9 +16,34 @@ export default function AuthPage() {
   const [displayName, setDisplayName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [signUpEmail, setSignUpEmail] = useState("");
+
+  useEffect(() => {
+    // Check URL parameters for verification status on mount
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("verified") === "true") {
+      setSuccessMessage("Your email has been verified successfully! You can now sign in.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      const err = params.get("verify_error");
+      if (err) {
+        if (err === "invalid_or_expired_token") {
+          setError("The verification link is invalid or has expired.");
+        } else if (err === "missing_token") {
+          setError("Verification token is missing.");
+        } else {
+          setError("An error occurred during email verification.");
+        }
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
 
   const reset = () => {
     setError(null);
+    setSuccessMessage(null);
   };
 
   const switchMode = (m: Mode) => {
@@ -46,9 +71,14 @@ export default function AuthPage() {
         setError("Password must be at least 6 characters.");
         return;
       }
-      // signUp now auto-signs in — on success the auth state updates and dashboard renders
-      const { error } = await signUp(email, password, username, displayName || username);
-      if (error) setError(error);
+      
+      const { error, verificationSent: sent } = await signUp(email, password, username, displayName || username);
+      if (error) {
+        setError(error);
+      } else if (sent) {
+        setSignUpEmail(email);
+        setVerificationSent(true);
+      }
     }
   };
 
@@ -75,167 +105,219 @@ export default function AuthPage() {
 
         {/* Card */}
         <div className="bg-zinc-900/60 backdrop-blur-md border border-zinc-800/60 rounded-2xl p-6 shadow-2xl">
-          {/* Tab Switcher */}
-          <div className="flex bg-zinc-950/70 rounded-xl p-1 mb-6 border border-zinc-800/40">
-            <button
-              onClick={() => switchMode("signin")}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 cursor-pointer ${
-                mode === "signin"
-                  ? "bg-zinc-800 text-white shadow-sm"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
-              Sign In
-            </button>
-            <button
-              onClick={() => switchMode("signup")}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 cursor-pointer ${
-                mode === "signup"
-                  ? "bg-zinc-800 text-white shadow-sm"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
-              Create Account
-            </button>
-          </div>
+          {verificationSent ? (
+            <div className="text-center py-4 space-y-4 animate-fade-in">
+              <div className="w-16 h-16 mx-auto rounded-full bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+                <Mail className="w-8 h-8 text-indigo-400 animate-pulse" />
+              </div>
+              
+              <div className="space-y-2">
+                <h2 className="text-lg font-bold text-white">Check your email</h2>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  We sent a verification link to <span className="text-indigo-400 font-semibold">{signUpEmail}</span>.
+                </p>
+                <p className="text-[11px] text-zinc-500 leading-relaxed px-2">
+                  Please click the link in the email to verify and activate your account. The link expires in 24 hours.
+                </p>
+              </div>
 
-          <form onSubmit={handleSubmit} className="space-y-3.5">
-            {/* Sign Up extras */}
-            {mode === "signup" && (
-              <>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
-                    Display Name
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-                    <input
-                      type="text"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder="Your full name (optional)"
-                      className="w-full pl-9 pr-4 py-2.5 bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 focus:border-indigo-500 focus:outline-none rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 transition-all font-medium"
-                    />
-                  </div>
+              {/* Dev Tip */}
+              <div className="p-3 bg-zinc-950/70 border border-zinc-800 rounded-xl text-left text-[10px] text-zinc-400 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-indigo-400">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Developer Sandbox Tip:</span>
                 </div>
+                <p className="leading-normal">
+                  If SMTP isn&apos;t set up, open the folder <code className="bg-zinc-900 text-indigo-300 px-1 py-0.5 rounded font-mono">logs/</code> and check <code className="bg-zinc-900 text-indigo-300 px-1 py-0.5 rounded font-mono">verification_emails.log</code> to grab the link immediately!
+                </p>
+              </div>
 
+              <button
+                onClick={() => {
+                  setVerificationSent(false);
+                  switchMode("signin");
+                }}
+                className="w-full py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Back to Sign In
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Tab Switcher */}
+              <div className="flex bg-zinc-950/70 rounded-xl p-1 mb-6 border border-zinc-800/40">
+                <button
+                  onClick={() => switchMode("signin")}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 cursor-pointer ${
+                    mode === "signin"
+                      ? "bg-zinc-800 text-white shadow-sm"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => switchMode("signup")}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 cursor-pointer ${
+                    mode === "signup"
+                      ? "bg-zinc-800 text-white shadow-sm"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  Create Account
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-3.5">
+                {/* Sign Up extras */}
+                {mode === "signup" && (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                        Display Name
+                      </label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                        <input
+                          type="text"
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          placeholder="Your full name (optional)"
+                          className="w-full pl-9 pr-4 py-2.5 bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 focus:border-indigo-500 focus:outline-none rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 transition-all font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                        Username <span className="text-red-400">*</span>
+                      </label>
+                      <div className="relative">
+                        <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                        <input
+                          type="text"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                          placeholder="your_username"
+                          required
+                          className="w-full pl-9 pr-4 py-2.5 bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 focus:border-indigo-500 focus:outline-none rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 transition-all font-medium"
+                        />
+                      </div>
+                      <p className="text-[9px] text-zinc-600 px-1">
+                        Friends find you by @username — lowercase letters, numbers, underscores only.
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {/* Email */}
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
-                    Username <span className="text-red-400">*</span>
+                    Email <span className="text-red-400">*</span>
                   </label>
                   <div className="relative">
-                    <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
                     <input
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                      placeholder="your_username"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
                       required
                       className="w-full pl-9 pr-4 py-2.5 bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 focus:border-indigo-500 focus:outline-none rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 transition-all font-medium"
                     />
                   </div>
-                  <p className="text-[9px] text-zinc-600 px-1">
-                    Friends find you by @username — lowercase letters, numbers, underscores only.
-                  </p>
                 </div>
-              </>
-            )}
 
-            {/* Email */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
-                Email <span className="text-red-400">*</span>
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  className="w-full pl-9 pr-4 py-2.5 bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 focus:border-indigo-500 focus:outline-none rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 transition-all font-medium"
-                />
-              </div>
-            </div>
+                {/* Password */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                    Password <span className="text-red-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={mode === "signup" ? "Min. 6 characters" : "Your password"}
+                      required
+                      className="w-full pl-9 pr-10 py-2.5 bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 focus:border-indigo-500 focus:outline-none rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 transition-all font-medium"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
 
-            {/* Password */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
-                Password <span className="text-red-400">*</span>
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === "signup" ? "Min. 6 characters" : "Your password"}
-                  required
-                  className="w-full pl-9 pr-10 py-2.5 bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 focus:border-indigo-500 focus:outline-none rounded-xl text-sm text-zinc-100 placeholder:text-zinc-600 transition-all font-medium"
-                />
+                {/* Success Message */}
+                {successMessage && (
+                  <div className="px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-[11px] font-semibold flex items-start gap-1.5 animate-fade-in">
+                    <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    <span>{successMessage}</span>
+                  </div>
+                )}
+
+                {/* Error Message */}
+                {error && (
+                  <div className="px-3 py-2.5 bg-red-500/8 border border-red-500/15 rounded-xl text-red-400 text-[11px] font-semibold flex items-start gap-1.5 animate-fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {/* Submit Button */}
                 <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full py-2.5 mt-1 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-sm font-bold rounded-xl transition-all duration-200 shadow-lg shadow-indigo-500/20 active:scale-[0.98] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {authLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {mode === "signin" ? "Signing in..." : "Creating account..."}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      {mode === "signin" ? "Sign In" : "Create Account"}
+                    </>
+                  )}
                 </button>
-              </div>
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="px-3 py-2.5 bg-red-500/8 border border-red-500/15 rounded-xl text-red-400 text-[11px] font-semibold animate-fade-in">
-                ⚠ {error}
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={authLoading}
-              className="w-full py-2.5 mt-1 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-sm font-bold rounded-xl transition-all duration-200 shadow-lg shadow-indigo-500/20 active:scale-[0.98] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {authLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {mode === "signin" ? "Signing in..." : "Creating account..."}
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  {mode === "signin" ? "Sign In" : "Create Account"}
-                </>
-              )}
-            </button>
-          </form>
+              </form>
+            </>
+          )}
         </div>
 
         {/* Footer note */}
-        <p className="text-center text-[10px] text-zinc-600 mt-5 select-none">
-          {mode === "signin" ? (
-            <>
-              Don&apos;t have an account?{" "}
-              <button
-                onClick={() => switchMode("signup")}
-                className="text-indigo-400 hover:text-indigo-300 font-bold cursor-pointer transition-colors"
-              >
-                Sign up free
-              </button>
-            </>
-          ) : (
-            <>
-              Already have an account?{" "}
-              <button
-                onClick={() => switchMode("signin")}
-                className="text-indigo-400 hover:text-indigo-300 font-bold cursor-pointer transition-colors"
-              >
-                Sign in
-              </button>
-            </>
-          )}
-        </p>
+        {!verificationSent && (
+          <p className="text-center text-[10px] text-zinc-600 mt-5 select-none">
+            {mode === "signin" ? (
+              <>
+                Don&apos;t have an account?{" "}
+                <button
+                  onClick={() => switchMode("signup")}
+                  className="text-indigo-400 hover:text-indigo-300 font-bold cursor-pointer transition-colors"
+                >
+                  Sign up free
+                </button>
+              </>
+            ) : (
+              <>
+                Already have an account?{" "}
+                <button
+                  onClick={() => switchMode("signin")}
+                  className="text-indigo-400 hover:text-indigo-300 font-bold cursor-pointer transition-colors"
+                >
+                  Sign in
+                </button>
+              </>
+            )}
+          </p>
+        )}
       </div>
     </div>
   );

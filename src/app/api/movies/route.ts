@@ -16,6 +16,13 @@ export async function GET(request: NextRequest) {
 
     if (migrate === "true") {
       const collection = await getCollection();
+
+      // Backfill owners field for any records that are missing it
+      await collection.updateMany(
+        { owners: { $exists: false } },
+        [{ $set: { owners: { $ifNull: ["$reviews_json", ""] } } }]
+      );
+
       const movies = await collection.find({
         $or: [
           { release_date: { $exists: false } },
@@ -102,6 +109,11 @@ export async function POST(request: NextRequest) {
     const operations = moviesToInsert.map((movie: any) => {
       // Ensure we clean the MongoDB internal _id to prevent duplicate key errors if upserting
       const { _id, ...cleanMovie } = movie;
+
+      // Ensure owners field is always set — default to reviews_json (original adder) if missing
+      if (!cleanMovie.owners && cleanMovie.reviews_json) {
+        cleanMovie.owners = cleanMovie.reviews_json;
+      }
       
       return {
         updateOne: {

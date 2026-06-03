@@ -20,9 +20,14 @@ export interface Movie {
   declined_by?: string;
   ratings_json?: string;
   reviews_json?: string;
+  owners?: string; // Comma-separated usernames who have this in their personal list
+  owner_ids?: string; // Comma-separated user IDs who own this
+  watched_by_ids?: string; // Comma-separated user IDs who watched this
+  declined_by_ids?: string; // Comma-separated user IDs who declined this
   user_id?: string | null;
   created_at?: string;
   release_date?: string | null;
+  watched_at?: string | null;
 }
 
 export interface TMDBMovie {

@@ -7,19 +7,28 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import { supabase, isSupabaseConfigured, Profile, Friendship } from "@/lib/supabase";
-import type { User, Session } from "@supabase/supabase-js";
+import { Profile, Friendship } from "@/lib/supabase";
+
+interface User {
+  id: string;
+  email: string;
+  username: string;
+  display_name: string;
+  avatar_color: string;
+  role: string;
+  is_verified: boolean;
+  created_at: string;
+}
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
   profile: Profile | null;
   friends: Profile[];
   friendships: Friendship[];
   pendingRequests: Friendship[];
   loading: boolean;
   authLoading: boolean;
-  signUp: (email: string, password: string, username: string, displayName: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, username: string, displayName: string) => Promise<{ error: string | null; verificationSent?: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -37,7 +46,6 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [friends, setFriends] = useState<Profile[]>([]);
   const [friendships, setFriendships] = useState<Friendship[]>([]);
@@ -55,7 +63,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (savedUser) {
       try {
-        setUser(JSON.parse(savedUser));
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
         if (savedProfile) setProfile(JSON.parse(savedProfile));
         if (savedFriends) setFriends(JSON.parse(savedFriends));
         if (savedFriendships) setFriendships(JSON.parse(savedFriendships));
@@ -67,256 +76,157 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const AVATAR_COLORS = [
-    "#6366f1", "#8b5cf6", "#ec4899", "#f59e0b",
-    "#10b981", "#3b82f6", "#ef4444", "#14b8a6",
-  ];
-
-  const fetchProfile = useCallback(async (userId: string) => {
-    if (!supabase) return;
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    if (data) {
-      setProfile(data as Profile);
-      localStorage.setItem("cinetrack_cached_profile", JSON.stringify(data));
+  const refreshProfile = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/me");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.authenticated && data.user) {
+          setUser(data.user);
+          const userProfile: Profile = {
+            id: data.user.id,
+            username: data.user.username,
+            display_name: data.user.display_name,
+            avatar_color: data.user.avatar_color,
+            created_at: data.user.created_at,
+            role: data.user.role
+          };
+          setProfile(userProfile);
+          localStorage.setItem("cinetrack_cached_user", JSON.stringify(data.user));
+          localStorage.setItem("cinetrack_cached_profile", JSON.stringify(userProfile));
+        } else {
+          setUser(null);
+          setProfile(null);
+        }
+      }
+    } catch (err) {
+      console.error("refreshProfile failed:", err);
     }
   }, []);
 
   const refreshFriends = useCallback(async (overrideUserId?: string) => {
     const targetUserId = overrideUserId || user?.id;
-    if (!supabase || !targetUserId) return;
+    if (!targetUserId) return;
 
-    // Fetch accepted friendships
-    const { data: friendshipsData, error: friendshipsError } = await supabase
-      .from("friendships")
-      .select(`
-        id, requester_id, addressee_id, status, merge_status, merge_requester_id, created_at,
-        requester:profiles!requester_id(id, username, display_name, avatar_color, created_at),
-        addressee:profiles!addressee_id(id, username, display_name, avatar_color, created_at)
-      `)
-      .or(`requester_id.eq.${targetUserId},addressee_id.eq.${targetUserId}`)
-      .eq("status", "accepted");
+    try {
+      const res = await fetch("/api/friendships");
+      if (!res.ok) throw new Error("Failed to fetch friendships");
+      const data = await res.json();
 
-    if (friendshipsError) {
-      console.error("Error fetching accepted friendships:", friendshipsError.message);
+      if (data.results) {
+        const allFriendships: Friendship[] = data.results;
+        
+        // Accepted friendships
+        const accepted = allFriendships.filter(f => f.status === "accepted");
+        setFriendships(accepted);
+        localStorage.setItem("cinetrack_cached_friendships", JSON.stringify(accepted));
+
+        const friendProfiles = accepted
+          .map((f) => f.requester_id === targetUserId ? f.addressee : f.requester)
+          .filter((p): p is Profile => p !== undefined);
+
+        setFriends(friendProfiles);
+        localStorage.setItem("cinetrack_cached_friends", JSON.stringify(friendProfiles));
+
+        // Pending requests received
+        const pending = allFriendships.filter(f => f.status === "pending" && f.addressee_id === targetUserId);
+        setPendingRequests(pending);
+        localStorage.setItem("cinetrack_cached_pending", JSON.stringify(pending));
+      }
+    } catch (err) {
+      console.error("refreshFriends failed:", err);
     }
+  }, [user?.id]);
 
-    if (friendshipsData) {
-  const mappedFriendships: Friendship[] = friendshipsData.map((f: any) => ({
-    ...f,
-    requester: Array.isArray(f.requester)
-      ? f.requester[0]
-      : f.requester,
-    addressee: Array.isArray(f.addressee)
-      ? f.addressee[0]
-      : f.addressee,
-  }));
-
-  setFriendships(mappedFriendships);
-
-  localStorage.setItem(
-    "cinetrack_cached_friendships",
-    JSON.stringify(mappedFriendships)
-  );
-
-  const friendProfiles = mappedFriendships
-    .map((f) =>
-      f.requester_id === targetUserId
-        ? f.addressee
-        : f.requester
-    )
-    .filter((p): p is Profile => p !== undefined);
-
-  setFriends(friendProfiles);
-  localStorage.setItem(
-    "cinetrack_cached_friends",
-    JSON.stringify(friendProfiles)
-  );
-} else {
-      setFriendships([]);
-      setFriends([]);
-    }
-
-    // Fetch pending requests sent TO me
-    const { data: pending, error: pendingError } = await supabase
-      .from("friendships")
-      .select(`
-        id, requester_id, addressee_id, status, created_at,
-        requester:profiles!requester_id(id, username, display_name, avatar_color, created_at)
-      `)
-      .eq("addressee_id", targetUserId)
-      .eq("status", "pending");
-
-    if (pendingError) {
-      console.error("Error fetching pending requests:", pendingError.message);
-    }
-
-    if (pending) {
-      const mappedPending = pending.map((req: any) => {
-        const rawReq = req.requester;
-        const requesterObj = Array.isArray(rawReq) ? rawReq[0] : rawReq;
-        return {
-          ...req,
-          requester: requesterObj
-        };
-      });
-      setPendingRequests(mappedPending as Friendship[]);
-      localStorage.setItem("cinetrack_cached_pending", JSON.stringify(mappedPending));
-    }
-  }, [user]);
-
-  const refreshProfile = useCallback(async () => {
-    if (user) await fetchProfile(user.id);
-  }, [user, fetchProfile]);
-
+  // Initial check on mount
   useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-
     let isMounted = true;
 
-    // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!isMounted) return;
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        localStorage.setItem("cinetrack_cached_user", JSON.stringify(session.user));
-        await Promise.all([
-          fetchProfile(session.user.id),
-          refreshFriends(session.user.id)
-        ]);
-      } else {
-        localStorage.removeItem("cinetrack_cached_user");
-        localStorage.removeItem("cinetrack_cached_profile");
-        localStorage.removeItem("cinetrack_cached_friends");
-        localStorage.removeItem("cinetrack_cached_friendships");
-        localStorage.removeItem("cinetrack_cached_pending");
-      }
-      setLoading(false);
-    });
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (!isMounted) return;
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          localStorage.setItem("cinetrack_cached_user", JSON.stringify(session.user));
-          await Promise.all([
-            fetchProfile(session.user.id),
-            refreshFriends(session.user.id)
-          ]);
-        } else {
-          setProfile(null);
-          setFriends([]);
-          setPendingRequests([]);
-          localStorage.removeItem("cinetrack_cached_user");
-          localStorage.removeItem("cinetrack_cached_profile");
-          localStorage.removeItem("cinetrack_cached_friends");
-          localStorage.removeItem("cinetrack_cached_friendships");
-          localStorage.removeItem("cinetrack_cached_pending");
-          localStorage.removeItem("cinetrack_movies_cache");
+    async function checkAuth() {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            if (data.authenticated && data.user) {
+              setUser(data.user);
+              const userProfile: Profile = {
+                id: data.user.id,
+                username: data.user.username,
+                display_name: data.user.display_name,
+                avatar_color: data.user.avatar_color,
+                created_at: data.user.created_at,
+                role: data.user.role
+              };
+              setProfile(userProfile);
+              localStorage.setItem("cinetrack_cached_user", JSON.stringify(data.user));
+              localStorage.setItem("cinetrack_cached_profile", JSON.stringify(userProfile));
+              await refreshFriends(data.user.id);
+            } else {
+              setUser(null);
+              setProfile(null);
+              setFriends([]);
+              setFriendships([]);
+              setPendingRequests([]);
+              localStorage.removeItem("cinetrack_cached_user");
+              localStorage.removeItem("cinetrack_cached_profile");
+              localStorage.removeItem("cinetrack_cached_friends");
+              localStorage.removeItem("cinetrack_cached_friendships");
+              localStorage.removeItem("cinetrack_cached_pending");
+              localStorage.removeItem("cinetrack_movies_cache");
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error in checkAuth:", err);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
         }
       }
-    );
+    }
+
+    checkAuth();
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load friends whenever user changes
+  // Poll for friends update (instant sync replacement)
   useEffect(() => {
-    if (user) refreshFriends();
+    if (!user) return;
+
+    const interval = setInterval(() => {
+      refreshFriends();
+    }, 8000);
+
+    return () => clearInterval(interval);
   }, [user, refreshFriends]);
-
-  // Keep a ref to the latest refreshFriends function to avoid rebuild loops
-  const refreshFriendsRef = React.useRef(refreshFriends);
-  useEffect(() => {
-    refreshFriendsRef.current = refreshFriends;
-  }, [refreshFriends]);
-
-  // 🔴 Realtime + polling for instant friend request notifications
- useEffect(() => {
-  if (!supabase || !user) return;
-
-  const sb = supabase;
-
-  const channel = sb
-    .channel(`friendships_realtime_${user.id}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "friendships",
-      },
-      () => {
-        refreshFriendsRef.current();
-      }
-    )
-    .subscribe();
-
-  const pollInterval = setInterval(() => {
-    refreshFriendsRef.current();
-  }, 8000);
-
-  return () => {
-    sb.removeChannel(channel);
-    clearInterval(pollInterval);
-  };
-}, [user?.id]);
-
 
   const signUp = async (
     email: string,
     password: string,
     username: string,
     displayName: string
-  ): Promise<{ error: string | null }> => {
-    if (!supabase) return { error: "Supabase not configured." };
+  ): Promise<{ error: string | null; verificationSent?: boolean }> => {
     setAuthLoading(true);
-
     try {
-      // Check username is unique
-      const { data: existing } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("username", username.toLowerCase())
-        .maybeSingle();
-
-      if (existing) {
-        return { error: "Username is already taken. Please choose another." };
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, username, display_name: displayName })
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        return { error: data.error || "Signup failed." };
       }
 
-      // Sign up — email confirmation disabled in Supabase dashboard
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) return { error: error.message };
-
-      if (data.user) {
-        const avatarColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
-        await supabase.from("profiles").insert([{
-          id: data.user.id,
-          username: username.toLowerCase(),
-          display_name: displayName || username,
-          avatar_color: avatarColor,
-        }]);
-
-        // Auto sign-in immediately (works when email confirmation is disabled)
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) return { error: signInError.message };
-      }
-
-      return { error: null };
+      return { error: null, verificationSent: true };
+    } catch (err: any) {
+      return { error: err.message || "An unexpected error occurred." };
     } finally {
       setAuthLoading(false);
     }
@@ -326,23 +236,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string
   ): Promise<{ error: string | null }> => {
-    if (!supabase) return { error: "Supabase not configured." };
     setAuthLoading(true);
-
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) return { error: error.message };
-      return { error: null };
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        return { error: data.error || "Login failed." };
+      }
+
+      if (data.success && data.user) {
+        setUser(data.user);
+        const userProfile: Profile = {
+          id: data.user.id,
+          username: data.user.username,
+          display_name: data.user.display_name,
+          avatar_color: data.user.avatar_color,
+          created_at: data.user.created_at,
+          role: data.user.role
+        };
+        setProfile(userProfile);
+        localStorage.setItem("cinetrack_cached_user", JSON.stringify(data.user));
+        localStorage.setItem("cinetrack_cached_profile", JSON.stringify(userProfile));
+        await refreshFriends(data.user.id);
+        return { error: null };
+      }
+
+      return { error: "Invalid response from server" };
+    } catch (err: any) {
+      return { error: err.message || "An unexpected error occurred." };
     } finally {
       setAuthLoading(false);
     }
   };
 
   const signOut = async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {}
+    
+    setUser(null);
     setProfile(null);
     setFriends([]);
+    setFriendships([]);
     setPendingRequests([]);
     localStorage.removeItem("cinetrack_cached_user");
     localStorage.removeItem("cinetrack_cached_profile");
@@ -355,153 +295,104 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const sendFriendRequest = async (
     username: string
   ): Promise<{ error: string | null }> => {
-    if (!supabase || !user) return { error: "Not authenticated." };
-
-    // Find user by username
-    const { data: target } = await supabase
-      .from("profiles")
-      .select("id, username")
-      .eq("username", username.toLowerCase())
-      .single();
-
-    if (!target) return { error: `No user found with username "@${username}".` };
-    if (target.id === user.id) return { error: "You cannot add yourself as a friend." };
-
-    // Check if friendship already exists
-    const { data: existing } = await supabase
-      .from("friendships")
-      .select("id, status")
-      .or(
-        `and(requester_id.eq.${user.id},addressee_id.eq.${target.id}),and(requester_id.eq.${target.id},addressee_id.eq.${user.id})`
-      )
-      .single();
-
-    if (existing) {
-      if (existing.status === "accepted") return { error: "You are already friends!" };
-      if (existing.status === "pending") return { error: "A friend request already exists." };
+    if (!user) return { error: "Not authenticated." };
+    try {
+      const res = await fetch("/api/friendships", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { error: data.error || "Failed to send request" };
+      }
+      await refreshFriends();
+      return { error: null };
+    } catch (err: any) {
+      return { error: err.message || "Failed to send friend request." };
     }
-
-    const { error } = await supabase.from("friendships").insert([{
-      requester_id: user.id,
-      addressee_id: target.id,
-      status: "pending",
-    }]);
-
-    if (error) return { error: error.message };
-    await refreshFriends();
-    return { error: null };
   };
 
   const acceptFriendRequest = async (friendshipId: string) => {
-    if (!supabase) return;
-    await supabase
-      .from("friendships")
-      .update({ status: "accepted" })
-      .eq("id", friendshipId);
-    await refreshFriends();
+    try {
+      await fetch("/api/friendships", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendshipId, action: "accept" })
+      });
+      await refreshFriends();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const rejectFriendRequest = async (friendshipId: string) => {
-    if (!supabase) return;
-    await supabase.from("friendships").delete().eq("id", friendshipId);
-    await refreshFriends();
+    try {
+      await fetch("/api/friendships", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendshipId, action: "reject" })
+      });
+      await refreshFriends();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const removeFriend = async (friendProfileId: string) => {
-    if (!supabase || !user) return;
-    // Find the friendship record involving both users
-    const { data } = await supabase
-      .from("friendships")
-      .select("id")
-      .or(
-        `and(requester_id.eq.${user.id},addressee_id.eq.${friendProfileId}),and(requester_id.eq.${friendProfileId},addressee_id.eq.${user.id})`
-      )
-      .single();
-    if (data) {
-      await supabase.from("friendships").delete().eq("id", data.id);
+    try {
+      await fetch(`/api/friendships?friendProfileId=${friendProfileId}`, {
+        method: "DELETE"
+      });
+      await refreshFriends();
+    } catch (err) {
+      console.error(err);
     }
-    await refreshFriends();
   };
 
   const requestMergeLists = async (friendProfileId: string) => {
-    if (!supabase || !user) return;
     try {
-      const { data } = await supabase
-        .from("friendships")
-        .select("id")
-        .or(`and(requester_id.eq.${user.id},addressee_id.eq.${friendProfileId}),and(requester_id.eq.${friendProfileId},addressee_id.eq.${user.id})`)
-        .maybeSingle();
-
-      if (data) {
-        const { error } = await supabase
-          .from("friendships")
-          .update({
-            merge_status: "pending",
-            merge_requester_id: user.id
-          })
-          .eq("id", data.id);
-        if (error) throw error;
-      }
+      await fetch("/api/friendships", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendProfileId, action: "request_merge" })
+      });
+      await refreshFriends();
     } catch (err) {
-      console.error("requestMergeLists failed:", err);
+      console.error(err);
     }
-    await refreshFriends();
   };
 
   const acceptMergeLists = async (friendProfileId: string) => {
-    if (!supabase || !user) return;
     try {
-      const { data } = await supabase
-        .from("friendships")
-        .select("id")
-        .or(`and(requester_id.eq.${user.id},addressee_id.eq.${friendProfileId}),and(requester_id.eq.${friendProfileId},addressee_id.eq.${user.id})`)
-        .maybeSingle();
-
-      if (data) {
-        const { error } = await supabase
-          .from("friendships")
-          .update({
-            merge_status: "accepted"
-          })
-          .eq("id", data.id);
-        if (error) throw error;
-      }
+      await fetch("/api/friendships", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendProfileId, action: "accept_merge" })
+      });
+      await refreshFriends();
     } catch (err) {
-      console.error("acceptMergeLists failed:", err);
+      console.error(err);
     }
-    await refreshFriends();
   };
 
   const rejectMergeLists = async (friendProfileId: string) => {
-    if (!supabase || !user) return;
     try {
-      const { data } = await supabase
-        .from("friendships")
-        .select("id")
-        .or(`and(requester_id.eq.${user.id},addressee_id.eq.${friendProfileId}),and(requester_id.eq.${friendProfileId},addressee_id.eq.${user.id})`)
-        .maybeSingle();
-
-      if (data) {
-        const { error } = await supabase
-          .from("friendships")
-          .update({
-            merge_status: "none",
-            merge_requester_id: null
-          })
-          .eq("id", data.id);
-        if (error) throw error;
-      }
+      await fetch("/api/friendships", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendProfileId, action: "reject_merge" })
+      });
+      await refreshFriends();
     } catch (err) {
-      console.error("rejectMergeLists failed:", err);
+      console.error(err);
     }
-    await refreshFriends();
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        session,
         profile,
         friends,
         friendships,

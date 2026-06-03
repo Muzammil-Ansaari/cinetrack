@@ -22,10 +22,11 @@ import {
   ThumbsDown,
   ChevronLeft,
   ChevronRight,
-  Calendar
+  Calendar,
+  Shield
 } from "lucide-react";
 import { Movie, TMDBMovie } from "@/types";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+// Supabase deprecated, utilizing native MongoDB operations
 import StatsPanel from "@/components/StatsPanel";
 import SearchBar from "@/components/SearchBar";
 import MovieCard from "@/components/MovieCard";
@@ -35,6 +36,7 @@ import { useAuth } from "@/lib/AuthContext";
 import BulkImportModal from "@/components/BulkImportModal";
 import CustomMovieModal from "@/components/CustomMovieModal";
 import DetailModal from "@/components/DetailModal";
+import AdminPanel from "@/components/AdminPanel";
 
 interface ActivityLog {
   id: string;
@@ -53,18 +55,14 @@ function DashboardInner() {
     user,
     profile,
     friends: authFriends,
-    friendships,
     pendingRequests,
     signOut,
     loading: authLoading,
-    requestMergeLists,
-    acceptMergeLists,
-    rejectMergeLists,
   } = useAuth();
   const [showFriendsPanel, setShowFriendsPanel] = useState(false);
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "unwatched" | "upcoming_watchlist" | "watched" | "declined" | "search_results">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "unwatched" | "upcoming_watchlist" | "watched" | "declined" | "search_results" | "admin">("dashboard");
   const [toast, setToast] = useState<{ message: string; type: "success" | "warning" | "info" } | null>(null);
   const [isCustomMovieModalOpen, setIsCustomMovieModalOpen] = useState(false);
   
@@ -189,12 +187,12 @@ function DashboardInner() {
             return (
               <div 
                 key={item.id} 
-                className="w-[130px] sm:w-[140px] flex-shrink-0 bg-zinc-900/40 border border-zinc-850 hover:border-zinc-800 rounded-2xl overflow-hidden flex flex-col justify-between shadow-md transition-all group relative"
+                className="w-[160px] sm:w-[180px] flex-shrink-0 bg-zinc-900/50 border border-zinc-800/70 hover:border-indigo-500/30 rounded-2xl overflow-hidden flex flex-col justify-between shadow-md hover:shadow-indigo-500/5 transition-all duration-300 group relative"
               >
                 {/* Poster Image / Click Trigger */}
                 <div 
                   onClick={() => openDetailModal(item.id.toString(), item.category || "Movie")}
-                  className="w-full aspect-[2/3] bg-zinc-950 overflow-hidden relative cursor-pointer group-hover:brightness-110 active:scale-95 transition-all"
+                  className="w-full aspect-[2/3] bg-zinc-950 overflow-hidden relative cursor-pointer active:scale-95 transition-all"
                   title="Click to view details & trailer"
                 >
                   {posterUrl ? (
@@ -211,9 +209,9 @@ function DashboardInner() {
                     </div>
                   )}
 
-                  {/* Top-Left Badge (Category tag) */}
+                  {/* Category Badge */}
                   {item.category && (
-                    <span className={`absolute top-2 left-2 px-1.5 py-0.5 border text-[7px] font-extrabold uppercase rounded tracking-wider backdrop-blur-sm select-none ${
+                    <span className={`absolute top-2 left-2 px-1.5 py-0.5 border text-[7px] font-extrabold uppercase rounded-md tracking-wider backdrop-blur-sm select-none ${
                       item.category === "Anime"
                         ? "bg-purple-500/20 border-purple-500/30 text-purple-400"
                         : item.category === "TV Show"
@@ -226,72 +224,65 @@ function DashboardInner() {
                     </span>
                   )}
 
-                  {/* Hover Overlay with Synopsis */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-2.5">
-                    <p className="text-[8.5px] font-medium text-zinc-300 line-clamp-3 leading-relaxed">
+                  {/* Hover Synopsis Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/95 via-zinc-950/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
+                    <p className="text-[8.5px] font-medium text-zinc-300 line-clamp-4 leading-relaxed">
                       {item.overview || "No description available."}
                     </p>
                   </div>
                 </div>
 
                 {/* Info Block */}
-                <div className="p-3 flex flex-col justify-between flex-grow">
+                <div className="p-3 flex flex-col gap-2">
                   <div>
                     <h4 
                       onClick={() => openDetailModal(item.id.toString(), item.category || "Movie")}
-                      className="text-[11px] font-extrabold text-zinc-150 line-clamp-2 leading-tight cursor-pointer hover:text-indigo-400 transition-colors"
+                      className="text-[11.5px] font-extrabold text-zinc-100 line-clamp-2 leading-snug cursor-pointer hover:text-indigo-400 transition-colors"
                       title={item.title}
                     >
                       {item.title}
                     </h4>
-                    
-                    <div className="flex flex-col gap-1 mt-1.5 text-[9px] font-bold text-zinc-500">
-                      <div className="flex items-center gap-1.5">
-                        {showDateOnly ? (
-                          <span className="text-indigo-400 font-extrabold">{formattedReleaseDate}</span>
-                        ) : (
-                          <span>{year}</span>
-                        )}
-                        {rating !== "N/A" && rating !== "0.0" && (
-                          <>
-                            <span className="w-0.5 h-0.5 rounded-full bg-zinc-705" />
-                            <span className="text-amber-500 font-semibold">⭐ {rating}</span>
-                          </>
-                        )}
-                      </div>
+
+                    <div className="flex items-center gap-2 mt-1.5 text-[9px] font-semibold text-zinc-500">
+                      {showDateOnly ? (
+                        <span className="text-indigo-400 font-extrabold">{formattedReleaseDate}</span>
+                      ) : (
+                        <span>{year}</span>
+                      )}
+                      {rating !== "N/A" && rating !== "0.0" && (
+                        <span className="text-amber-400 font-bold">⭐ {rating}</span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Add Kicker */}
-                  <div className="mt-3">
-                    {itemTracked ? (
-                      <div className="w-full py-1.5 bg-zinc-900 border border-zinc-800 text-zinc-550 text-[9px] font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1 select-none">
-                        <Check className="w-3 h-3 text-indigo-400" /> Tracked
-                      </div>
-                    ) : (
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          const movieObj: TMDBMovie = {
-                            id: item.id,
-                            title: item.title,
-                            poster_path: item.poster_path,
-                            backdrop_path: item.backdrop_path,
-                            release_date: item.release_date,
-                            vote_average: item.vote_average,
-                            overview: item.overview,
-                            media_type: item.media_type,
-                            category: item.category,
-                            seasons: null,
-                          };
-                          await handleAddMovie(movieObj, false);
-                        }}
-                        className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95 border border-indigo-500/20"
-                      >
-                        <Plus className="w-3 h-3" /> Add Queue
-                      </button>
-                    )}
-                  </div>
+                  {/* Add / Tracked button */}
+                  {itemTracked ? (
+                    <div className="w-full py-1.5 bg-zinc-900 border border-zinc-800 text-zinc-500 text-[9px] font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1 select-none">
+                      <Check className="w-3 h-3 text-indigo-400" /> Tracked
+                    </div>
+                  ) : (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const movieObj: TMDBMovie = {
+                          id: item.id,
+                          title: item.title,
+                          poster_path: item.poster_path,
+                          backdrop_path: item.backdrop_path,
+                          release_date: item.release_date,
+                          vote_average: item.vote_average,
+                          overview: item.overview,
+                          media_type: item.media_type,
+                          category: item.category,
+                          seasons: null,
+                        };
+                        await handleAddMovie(movieObj, false);
+                      }}
+                      className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95 border border-indigo-500/20"
+                    >
+                      <Plus className="w-3 h-3" /> Add to List
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -344,76 +335,29 @@ function DashboardInner() {
   const [upcomingGenreFilter, setUpcomingGenreFilter] = useState("");
   const [upcomingCategoryFilter, setUpcomingCategoryFilter] = useState("");
 
+  // Date range filters
+  const [unwatchedDatePreset, setUnwatchedDatePreset] = useState("all");
+  const [unwatchedStartDate, setUnwatchedStartDate] = useState("");
+  const [unwatchedEndDate, setUnwatchedEndDate] = useState("");
+
+  const [watchedDatePreset, setWatchedDatePreset] = useState("all");
+  const [watchedStartDate, setWatchedStartDate] = useState("");
+  const [watchedEndDate, setWatchedEndDate] = useState("");
+
+  const [upcomingDatePreset, setUpcomingDatePreset] = useState("all");
+  const [upcomingStartDate, setUpcomingStartDate] = useState("");
+  const [upcomingEndDate, setUpcomingEndDate] = useState("");
+
   // Recent Activity Feed
   const [activities, setActivities] = useState<ActivityLog[]>([]);
 
-  const syncChannelRef = useRef<any>(null);
-
-  // Real-time synchronization via Supabase Broadcasts
-  useEffect(() => {
-    if (!supabase || !user) return;
-
-    console.log("CineTrack Realtime: Subscribing to global sync channel...");
-    const channel = supabase.channel("cinetrack_global_sync");
-    
-    channel
-      .on("broadcast", { event: "movie_changed" }, (payload) => {
-        const senderId = payload.payload?.senderId;
-        const senderName = payload.payload?.username;
-        
-        // Check if the sender is one of our friends
-        const isFriend = authFriends.some((f) => f.id === senderId);
-        
-        if (isFriend) {
-          console.log(`CineTrack Realtime: Received movie update from @${senderName}. Refreshing...`);
-          refetchRef.current();
-        }
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          console.log("CineTrack Realtime: Subscribed successfully!");
-          syncChannelRef.current = channel;
-        }
-      });
-
-    return () => {
-      console.log("CineTrack Realtime: Cleaning up global sync subscription...");
-      supabase?.removeChannel(channel);
-    };
-  }, [user?.id, authFriends]);
-
+  // Real-time synchronization is handled via HTTP polling
   const broadcastMovieChange = useCallback(() => {
-    if (syncChannelRef.current && user) {
-      console.log("CineTrack Realtime: Publishing movie_changed event...");
-      syncChannelRef.current.send({
-        type: "broadcast",
-        event: "movie_changed",
-        payload: { senderId: user.id, username: profile?.username || user.email },
-      });
-    }
-  }, [user?.id, profile?.username, user?.email]);
+    // Deprecated with Supabase drop. Sync is managed via HTTP polling
+  }, []);
 
-  // Helper to ensure the Supabase auth token is fresh before any database mutations
   const ensureFreshSession = async () => {
-    if (!supabase) return null;
-    try {
-      console.log("CineTrack [Diagnostics]: Running getSession with a 3-second timeout guard...");
-      
-      // We set a 3-second timeout limit for Supabase session checks to prevent thread locks
-      const sessionPromise = supabase.auth.getSession();
-      const timeoutPromise = new Promise<{ data: { session: any } }>((_, reject) =>
-        setTimeout(() => reject(new Error("Supabase auth session request timed out")), 3000)
-      );
-
-      const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
-      console.log("CineTrack [Diagnostics]: getSession resolved successfully.");
-      if (session) {
-        return session;
-      }
-    } catch (err: any) {
-      console.warn("CineTrack [Diagnostics]: Session verification timed out or failed, proceeding with caution:", err);
-      // Proceed instead of blocking, so the user can still attempt database writes or local operations
-    }
+    // Deprecated with Supabase drop. Session verification uses custom HTTP cookies.
     return null;
   };
 
@@ -429,31 +373,86 @@ function DashboardInner() {
     return friend ? (friend.display_name || friend.username) : "Friend";
   }, [user?.id, myName, authFriends]);
 
-  // Compute active merged co-watch group members
-  const mergedFriendships = useMemo(() => {
-    return (friendships || []).filter(
-      (fs) => fs.status === "accepted" && fs.merge_status === "accepted"
+  // Helper to map username or display name to their UUID
+  const getUserIdByName = useCallback((name: string) => {
+    if (!name) return null;
+    if (name === myName || name.toLowerCase() === "me" || name.toLowerCase() === "my list" || name.toLowerCase() === "my watch list") {
+      return user?.id;
+    }
+    const friend = authFriends.find((f) => 
+      (f.display_name || "").toLowerCase() === name.toLowerCase() ||
+      (f.username || "").toLowerCase() === name.toLowerCase()
     );
-  }, [friendships]);
+    return friend ? friend.id : null;
+  }, [myName, user?.id, authFriends]);
 
-  const mergedFriends = useMemo(() => {
-    return authFriends.filter((f) =>
-      mergedFriendships.some((fs) => fs.requester_id === f.id || fs.addressee_id === f.id)
-    );
-  }, [authFriends, mergedFriendships]);
+  const isMovieOwnedByUser = useCallback((m: Movie, name: string) => {
+    const targetUserId = getUserIdByName(name);
+    
+    // 1. Check by user_id in owner_ids
+    if (targetUserId && m.owner_ids) {
+      const ownerIds = m.owner_ids.split(", ").filter(Boolean);
+      if (ownerIds.includes(targetUserId)) return true;
+    }
+    
+    // 2. Check by name in owners field (case-insensitive)
+    if (m.owners) {
+      const owners = m.owners.split(", ").map(o => o.trim().toLowerCase()).filter(Boolean);
+      if (owners.includes(name.toLowerCase())) return true;
+    }
+    
+    // 3. Check by name in reviews_json (legacy fallback)
+    if (m.reviews_json) {
+      const reviews = m.reviews_json.split(", ").map(r => r.trim().toLowerCase()).filter(Boolean);
+      if (reviews.includes(name.toLowerCase())) return true;
+    }
+    
+    // 4. Check if the canonical movie's user_id maps to this user name
+    const canonicalOwner = getUserNameById(m.user_id);
+    if (canonicalOwner.toLowerCase() === name.toLowerCase()) return true;
 
+    return false;
+  }, [getUserIdByName, getUserNameById]);
+
+  const isMovieWatchedByUser = useCallback((m: Movie, name: string) => {
+    const targetUserId = getUserIdByName(name);
+    if (targetUserId && m.watched_by_ids) {
+      const watchedIds = m.watched_by_ids.split(", ").filter(Boolean);
+      if (watchedIds.includes(targetUserId)) return true;
+    }
+    if (m.watched_by) {
+      const watched = m.watched_by.split(", ").map(w => w.trim().toLowerCase()).filter(Boolean);
+      if (watched.includes(name.toLowerCase())) return true;
+    }
+    return false;
+  }, [getUserIdByName]);
+
+  const isMovieDeclinedByUser = useCallback((m: Movie, name: string) => {
+    const targetUserId = getUserIdByName(name);
+    if (targetUserId && m.declined_by_ids) {
+      const declinedIds = m.declined_by_ids.split(", ").filter(Boolean);
+      if (declinedIds.includes(targetUserId)) return true;
+    }
+    if (m.declined_by) {
+      const declined = m.declined_by.split(", ").map(d => d.trim().toLowerCase()).filter(Boolean);
+      if (declined.includes(name.toLowerCase())) return true;
+    }
+    return false;
+  }, [getUserIdByName]);
+
+  // Fetch movies for ALL accepted friends so we can browse their queues
   const coWatchGroupUserIds = useMemo(() => {
-    return [user?.id, ...mergedFriends.map((f) => f.id)].filter(Boolean) as string[];
-  }, [user?.id, mergedFriends]);
+    return [user?.id, ...authFriends.map((f) => f.id)].filter(Boolean) as string[];
+  }, [user?.id, authFriends]);
 
-  // friends is the co-watch group display names (Me + active merged friends)
+  // friends = display names for list tabs: Me + all accepted friends
   const friends = useMemo(() => {
-    return [myName, ...mergedFriends.map((f) => f.display_name || f.username)];
-  }, [myName, mergedFriends]);
+    return [myName, ...authFriends.map((f) => f.display_name || f.username)];
+  }, [myName, authFriends]);
 
-  const [watchedViewMode, setWatchedViewMode] = useState<"co-watched" | string>("co-watched");
-  const [unwatchedViewMode, setUnwatchedViewMode] = useState<"all" | string>("all");
-  const [upcomingViewMode, setUpcomingViewMode] = useState<"all" | string>("all");
+  const [watchedViewMode, setWatchedViewMode] = useState<string>("my-list");
+  const [unwatchedViewMode, setUnwatchedViewMode] = useState<string>("my-list");
+  const [upcomingViewMode, setUpcomingViewMode] = useState<string>("my-list");
 
 
 
@@ -487,7 +486,7 @@ function DashboardInner() {
     }
   }, [user?.id, coWatchGroupUserIds]);
 
-  // 🔴 Refetch movies from MongoDB API endpoint
+  // 🔴 Refetch movies from MongoDB API endpoint — keep rows per user (no merging)
   const refetchMovies = useCallback(async () => {
     if (!user) return;
     try {
@@ -497,72 +496,42 @@ function DashboardInner() {
       const { results } = await response.json();
       if (!results) return;
 
-      const rowsByTmdbId = new Map<string, Movie[]>();
-      for (const row of results as Movie[]) {
-        const key = row.tmdb_id;
-        const existingList = rowsByTmdbId.get(key) || [];
-        existingList.push(row);
-        rowsByTmdbId.set(key, existingList);
-      }
+      // Keep each DB row as its own Movie entry with the original user_id.
+      // This means your rows stay yours, friend rows stay theirs.
+      // The view-mode filters (isMovieOwnedByUser etc.) handle display correctly.
+      const normalizedMovies: Movie[] = (results as Movie[]).map((row: Movie) => {
+        const ownerName = getUserNameById(row.user_id);
+        // Populate watched_by / declined_by so filter helpers can work on single rows
+        const watchedBy   = row.watched  ? ownerName : (row.watched_by  || "");
+        const declinedBy  = row.declined ? ownerName : (row.declined_by || "");
+        const watchedByIds   = row.watched  ? (row.user_id || "") : (row.watched_by_ids  || "");
+        const declinedByIds  = row.declined ? (row.user_id || "") : (row.declined_by_ids || "");
 
-      const mergedMovies: Movie[] = [];
-      for (const [tmdbId, rows] of rowsByTmdbId.entries()) {
-        const unwatchedRow = rows.find((r) => !r.watched);
-        const canonicalRow = unwatchedRow || rows[0];
+        return {
+          ...row,
+          watched_by:      watchedBy,
+          declined_by:     declinedBy,
+          watched_by_ids:  watchedByIds,
+          declined_by_ids: declinedByIds,
+          // Ensure the "Added by" label is resolved from user_id
+          reviews_json: row.reviews_json || ownerName,
+          owners:       row.owners       || ownerName,
+        };
+      });
 
-        const watchedByNames = rows.filter((r) => r.watched).map((r) => getUserNameById(r.user_id));
-        const watchedByStr = Array.from(new Set(watchedByNames)).sort().join(", ");
-
-        const declinedByNames = rows.filter((r) => r.declined).map((r) => getUserNameById(r.user_id));
-        const declinedByStr = Array.from(new Set(declinedByNames)).sort().join(", ");
-
-        const pendingNames = friends.filter((name) => !watchedByNames.includes(name));
-        const allHaveWatched = pendingNames.length === 0;
-
-        const oldestRow = [...rows].sort((a, b) => {
-          const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-          if (timeA !== timeB) return timeA - timeB;
-          return String(a.id).localeCompare(String(b.id));
-        })[0] || rows[rows.length - 1];
-
-        const addedByUserId = oldestRow?.user_id;
-        const addedByName = getUserNameById(addedByUserId);
-
-        mergedMovies.push({
-          ...canonicalRow,
-          watched: allHaveWatched,
-          watched_by: watchedByStr,
-          declined_by: declinedByStr,
-          rating: rows.find((r) => r.user_id === user.id)?.rating ?? canonicalRow.rating,
-          review: rows.find((r) => r.user_id === user.id)?.review ?? canonicalRow.review,
-          ratings_json: JSON.stringify(
-            rows.map((r) => ({
-              username: getUserNameById(r.user_id),
-              rating: r.rating,
-              review: r.review,
-              watched: r.watched
-            }))
-          ),
-          reviews_json: addedByName,
-          id: rows.find((r) => r.user_id === user.id)?.id || canonicalRow.id,
-          user_id: user.id
-        });
-      }
-
-      // 🟢 Enforce strict descending chronological sort (newest additions at the very top)
-      mergedMovies.sort((a, b) => {
+      // Newest additions first
+      normalizedMovies.sort((a, b) => {
         const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
         const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
         return timeB - timeA;
       });
 
-      setMovies(mergedMovies);
-      localStorage.setItem("cinetrack_movies_cache", JSON.stringify(mergedMovies));
+      setMovies(normalizedMovies);
+      localStorage.setItem("cinetrack_movies_cache", JSON.stringify(normalizedMovies));
     } catch (e) {
       console.error("CineTrack [MongoDB GET Error]:", e);
     }
-  }, [user?.id, coWatchGroupUserIds, friends, refetchActivities]);
+  }, [user?.id, coWatchGroupUserIds, refetchActivities, getUserNameById]);
 
   // Keep a ref to the latest refetchMovies to avoid resubscribing on every memo change
   const refetchRef = useRef(refetchMovies);
@@ -636,6 +605,19 @@ function DashboardInner() {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
+  }, [user?.id]);
+
+  // 🔄 Real-time database sync: poll every 6 seconds if tab is active
+  useEffect(() => {
+    if (!user) return;
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refetchRef.current();
+      }
+    }, 6000);
+
+    return () => clearInterval(interval);
   }, [user?.id]);
 
 
@@ -799,8 +781,11 @@ function DashboardInner() {
         genres,
         watched_by: watched ? myName : "",
         ratings_json: "{}",
+        owners: myName,
+        reviews_json: myName,
         user_id: user?.id || null,
         created_at: new Date().toISOString(),
+        watched_at: watched ? new Date().toISOString() : null,
       };
       console.log("CineTrack [Diagnostics]: New entry object prepared:", newEntry);
 
@@ -933,6 +918,7 @@ function DashboardInner() {
         ratings_json: "{}",
         user_id: user?.id || null,
         created_at: new Date().toISOString(),
+        watched_at: watched ? new Date().toISOString() : null,
       };
 
       importedEntries.push(newEntry);
@@ -1023,6 +1009,7 @@ function DashboardInner() {
         ratings_json: "{}",
         reviews_json: "{}",
         created_at: resolvedCreatedAt,
+        watched_at: isMarkingWatched ? new Date().toISOString() : null,
       };
 
       const res = await fetch("/api/movies", {
@@ -1184,7 +1171,8 @@ function DashboardInner() {
         genres: movieData.genres,
         watched_by: movieData.watched ? myName : "",
         ratings_json: "{}",
-        reviews_json: myName, // Store creator name in reviews_json (Added by...)
+        reviews_json: myName,
+        owners: myName,
         user_id: user.id,
         created_at: new Date().toISOString(),
       };
@@ -1312,57 +1300,85 @@ function DashboardInner() {
     }
   };
 
+  // === Add to My List handler ===
+  const handleAddToMyList = async (movie: Movie) => {
+    if (!user) return;
+    if (isMovieOwnedByUser(movie, myName)) {
+      showToast(`"${movie.title}" is already in your list.`, "info");
+      return;
+    }
+    try {
+      const existingRow = movies.find(m => m.tmdb_id === movie.tmdb_id && m.user_id === user.id);
+      const newEntry = {
+        tmdb_id: movie.tmdb_id,
+        title: movie.title,
+        poster_path: movie.poster_path,
+        backdrop_path: movie.backdrop_path,
+        release_year: movie.release_year,
+        release_date: movie.release_date,
+        runtime: movie.runtime,
+        synopsis: movie.synopsis,
+        watched: false,
+        declined: false,
+        rating: null,
+        review: null,
+        seasons: movie.seasons,
+        episodes: movie.episodes || null,
+        category: movie.category,
+        global_rating: movie.global_rating,
+        genres: movie.genres,
+        watched_by: "",
+        declined_by: "",
+        ratings_json: "{}",
+        reviews_json: myName,
+        owners: myName,
+        user_id: user.id,
+        created_at: existingRow?.created_at || new Date().toISOString(),
+        watched_at: null,
+      };
+      const res = await fetch("/api/movies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newEntry),
+      });
+      if (!res.ok) throw new Error("Failed to add to your list");
+      await refetchMovies();
+      broadcastMovieChange();
+      logActivity("add", movie.title, movie.category, "added it to their Unwatched list");
+      showToast(`"${movie.title}" added to your list!`, "success");
+    } catch (err: any) {
+      showToast("Error adding to your list.", "warning");
+    }
+  };
+
   // === 3-TIER LIST LOGIC ===
   const baseUnwatchedList = movies.filter((m) => {
-    if (m.watched) return false;
-    const watchedBy = m.watched_by ? m.watched_by.split(", ").filter(Boolean) : [];
-    if (watchedBy.includes(myName)) return false;
-    const declinedBy = m.declined_by ? m.declined_by.split(", ").filter(Boolean) : [];
-    if (declinedBy.includes(myName)) return false;
-    
     // Filter out future/upcoming movies
     const today = new Date().toISOString().split("T")[0];
     if (m.release_date && m.release_date > today) return false;
-    
     return true;
   });
 
   const baseUpcomingList = movies.filter((m) => {
-    if (m.watched) return false;
-    const watchedBy = m.watched_by ? m.watched_by.split(", ").filter(Boolean) : [];
-    if (watchedBy.includes(myName)) return false;
-    const declinedBy = m.declined_by ? m.declined_by.split(", ").filter(Boolean) : [];
-    if (declinedBy.includes(myName)) return false;
-    
     // Only include upcoming titles
     const today = new Date().toISOString().split("T")[0];
     return m.release_date && m.release_date > today;
   });
 
   // DECLINED: movies that the current user personally declined (not interested / thumbs down)
-  const baseDeclinedList = movies.filter((m) => {
-    const declinedBy = m.declined_by ? m.declined_by.split(", ").filter(Boolean) : [];
-    return declinedBy.includes(myName);
-  });
+  const baseDeclinedList = movies.filter((m) => isMovieDeclinedByUser(m, myName));
 
   // MY WATCHED: movies where the current user personally has watched=true
-  // In our data model, m.watched=true only when ALL group members have watched it
-  // So for "my watched" we check if myName is in watched_by
-  const baseMyWatchedList = movies.filter((m) => {
-    const watchedBy = m.watched_by ? m.watched_by.split(", ").filter(Boolean) : [];
-    return watchedBy.includes(myName);
-  });
+  const baseMyWatchedList = movies.filter((m) => isMovieWatchedByUser(m, myName));
 
   // COMMON WATCHED: movies where ALL members in the co-watch group have watched
   const baseCommonWatchedList = movies.filter((m) => m.watched);
 
-  // Backward-compat: baseWatchedList = common watched (all friends watched)
-  const baseWatchedList = watchedViewMode === "co-watched"
-    ? baseCommonWatchedList
-    : movies.filter((m) => {
-        const watchedBy = m.watched_by ? m.watched_by.split(", ").filter(Boolean) : [];
-        return watchedBy.includes(watchedViewMode);
-      });
+  // baseWatchedList: watched list by selected view mode user (either my-list or a specific friend)
+  const baseWatchedList = movies.filter((m) => {
+    const activeUser = watchedViewMode === "my-list" ? myName : watchedViewMode;
+    return isMovieWatchedByUser(m, activeUser);
+  });
 
   // Dynamically extract all unique genres from logged items
   const unwatchedGenres = Array.from(
@@ -1383,15 +1399,43 @@ function DashboardInner() {
     )
   ).sort();
 
+  // Date filtering helper
+  const filterByDateRange = (itemDateStr: string | undefined | null, preset: string, start: string, end: string) => {
+    if (preset === "all") return true;
+    if (!itemDateStr) return false;
+
+    // Use split("T")[0] to get only the date portion for pure daily comparison
+    const itemDateVal = itemDateStr.split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
+
+    if (preset === "today") {
+      return itemDateVal === today;
+    }
+    if (preset === "7days") {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoStr = sevenDaysAgo.toISOString().split("T")[0];
+      return itemDateVal >= sevenDaysAgoStr && itemDateVal <= today;
+    }
+    if (preset === "30days") {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
+      return itemDateVal >= thirtyDaysAgoStr && itemDateVal <= today;
+    }
+    if (preset === "custom") {
+      if (start && itemDateVal < start) return false;
+      if (end && itemDateVal > end) return false;
+      return true;
+    }
+    return true;
+  };
+
   // Filter lists based on type, genres, formats and local searches
   const unwatchedList = baseUnwatchedList
     .filter((m) => {
-      if (unwatchedViewMode === "all") return true;
-      const creatorName = m.reviews_json || "Unknown";
-      if (unwatchedViewMode === "Me" || unwatchedViewMode === myName) {
-        return creatorName === myName;
-      }
-      return creatorName === unwatchedViewMode;
+      const activeUser = unwatchedViewMode === "my-list" ? myName : unwatchedViewMode;
+      return isMovieOwnedByUser(m, activeUser) && !isMovieWatchedByUser(m, activeUser) && !isMovieDeclinedByUser(m, activeUser);
     })
     .filter((m) => m.title.toLowerCase().includes(unwatchedFilter.trim().toLowerCase()))
     .filter((m) => {
@@ -1401,7 +1445,8 @@ function DashboardInner() {
     .filter((m) => {
       if (!unwatchedCategoryFilter) return true;
       return m.category === unwatchedCategoryFilter;
-    });
+    })
+    .filter((m) => filterByDateRange(m.created_at, unwatchedDatePreset, unwatchedStartDate, unwatchedEndDate));
 
   const watchedList = baseWatchedList
     .filter((m) => m.title.toLowerCase().includes(watchedFilter.trim().toLowerCase()))
@@ -1412,16 +1457,13 @@ function DashboardInner() {
     .filter((m) => {
       if (!watchedCategoryFilter) return true;
       return m.category === watchedCategoryFilter;
-    });
+    })
+    .filter((m) => filterByDateRange(m.watched_at || m.created_at, watchedDatePreset, watchedStartDate, watchedEndDate));
 
   const upcomingList = baseUpcomingList
     .filter((m) => {
-      if (upcomingViewMode === "all") return true;
-      const creatorName = m.reviews_json || "Unknown";
-      if (upcomingViewMode === "Me" || upcomingViewMode === myName) {
-        return creatorName === myName;
-      }
-      return creatorName === upcomingViewMode;
+      const activeUser = upcomingViewMode === "my-list" ? myName : upcomingViewMode;
+      return isMovieOwnedByUser(m, activeUser) && !isMovieWatchedByUser(m, activeUser) && !isMovieDeclinedByUser(m, activeUser);
     })
     .filter((m) => m.title.toLowerCase().includes(upcomingFilter.trim().toLowerCase()))
     .filter((m) => {
@@ -1432,6 +1474,7 @@ function DashboardInner() {
       if (!upcomingCategoryFilter) return true;
       return m.category === upcomingCategoryFilter;
     })
+    .filter((m) => filterByDateRange(m.created_at, upcomingDatePreset, upcomingStartDate, upcomingEndDate))
     .sort((a, b) => {
       const dateA = a.release_date || "";
       const dateB = b.release_date || "";
@@ -1452,177 +1495,151 @@ function DashboardInner() {
       <div className="fixed -top-40 -left-40 w-96 h-96 bg-indigo-500/5 rounded-full filter blur-[100px] pointer-events-none" />
       <div className="fixed top-1/3 -right-40 w-96 h-96 bg-emerald-500/3 rounded-full filter blur-[100px] pointer-events-none" />
 
-      {/* Sleek Top Bar Navigation */}
-      <header className="sticky top-0 z-40 w-full border-b border-zinc-900 bg-zinc-950/80 backdrop-blur-md select-none">
-        <div className="max-w-6xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
-          {/* Logo Heading */}
-          <div 
-            onClick={() => {
-              setActiveTab("dashboard");
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            className="flex items-center gap-3 cursor-pointer group"
+      {/* ── Sleek Top Bar ── */}
+      <header className="sticky top-0 z-40 w-full border-b border-zinc-900 bg-zinc-950/90 backdrop-blur-md select-none">
+        <div className="max-w-6xl mx-auto px-4 md:px-8 h-14 flex items-center justify-between gap-4">
+
+          {/* Logo */}
+          <div
+            onClick={() => { setActiveTab("dashboard"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            className="flex items-center gap-2.5 cursor-pointer group flex-shrink-0"
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 transition-all">
-              <Film className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 transition-all">
+              <Film className="w-3.5 h-3.5" />
             </div>
-            <div>
-              <h1 className="text-sm font-extrabold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-                CineTrack
-              </h1>
-              <p className="text-[9px] text-zinc-500 font-semibold -mt-0.5">Media Logger</p>
-            </div>
+            <h1 className="text-sm font-extrabold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent hidden sm:block">
+              CineTrack
+            </h1>
           </div>
 
-          {/* Desktop Navigation Items */}
-          <nav className="hidden md:flex items-center gap-1.5 lg:gap-2">
-            <button
-              onClick={() => {
-                setActiveTab("dashboard");
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "dashboard"
-                  ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/25"
-                  : "text-zinc-400 hover:text-zinc-200 border border-transparent hover:bg-zinc-900/50"
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>Dashboard</span>
-            </button>
+          {/* Desktop Nav — icon + label pills */}
+          <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
+            {[
+              { tab: "dashboard",          icon: <LayoutDashboard className="w-3.5 h-3.5" />, label: "Home",     accent: "indigo"   },
+              { tab: "unwatched",          icon: <Compass        className="w-3.5 h-3.5" />, label: "Unwatched", accent: "amber"    },
+              { tab: "upcoming_watchlist", icon: <Calendar       className="w-3.5 h-3.5" />, label: "Upcoming", accent: "amber"    },
+              { tab: "watched",            icon: <Trophy         className="w-3.5 h-3.5" />, label: "Watched",  accent: "emerald"  },
+              { tab: "declined",           icon: <ThumbsDown     className="w-3.5 h-3.5" />, label: "Declined", accent: "red",
+                badge: baseDeclinedList.length > 0 ? baseDeclinedList.length : null },
+            ].map(({ tab, icon, label, accent, badge }) => {
+              const isActive = activeTab === tab;
+              const accentMap: Record<string, string> = {
+                indigo:  isActive ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/25"  : "hover:text-indigo-300",
+                amber:   isActive ? "bg-amber-500/10  text-amber-400  border-amber-500/25"   : "hover:text-amber-300",
+                emerald: isActive ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/25" : "hover:text-emerald-300",
+                red:     isActive ? "bg-red-500/10    text-red-400    border-red-500/25"     : "hover:text-red-300",
+              };
+              return (
+                <button
+                  key={tab}
+                  onClick={() => { setActiveTab(tab as any); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                    isActive
+                      ? `${accentMap[accent]}`
+                      : `text-zinc-500 border-transparent hover:bg-zinc-900/60 ${accentMap[accent]}`
+                  }`}
+                  title={label}
+                >
+                  {icon}
+                  <span>{label}</span>
+                  {badge != null && (
+                    <span className={`ml-0.5 text-[8px] font-extrabold px-1.5 py-0.5 rounded-full ${
+                      isActive ? "bg-red-500/20 text-red-400" : "bg-zinc-900 text-zinc-500 border border-zinc-800"
+                    }`}>{badge}</span>
+                  )}
+                </button>
+              );
+            })}
 
-            <button
-              onClick={() => {
-                setActiveTab("unwatched");
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "unwatched"
-                  ? "bg-amber-500/10 text-amber-400 border border-amber-500/25"
-                  : "text-zinc-400 hover:text-zinc-200 border border-transparent hover:bg-zinc-900/50"
-              }`}
-            >
-              <Compass className="w-3.5 h-3.5" />
-              <span>Unwatched</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveTab("upcoming_watchlist");
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "upcoming_watchlist"
-                  ? "bg-amber-500/10 text-amber-400 border border-amber-500/25"
-                  : "text-zinc-400 hover:text-zinc-200 border border-transparent hover:bg-zinc-900/50"
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5 text-amber-400" />
-              <span>Upcoming</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveTab("watched");
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "watched"
-                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/25"
-                  : "text-zinc-400 hover:text-zinc-200 border border-transparent hover:bg-zinc-900/50"
-              }`}
-            >
-              <Trophy className="w-3.5 h-3.5" />
-              <span>Watched</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveTab("declined");
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "declined"
-                  ? "bg-red-500/10 text-red-400 border border-red-500/25"
-                  : "text-zinc-400 hover:text-zinc-200 border border-transparent hover:bg-zinc-900/50"
-              }`}
-            >
-              <ThumbsDown className="w-3.5 h-3.5" />
-              <span>Declined</span>
-              <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${
-                activeTab === "declined"
-                  ? "bg-red-500/20 text-red-400"
-                  : "bg-zinc-900 text-zinc-500 border border-zinc-800"
-              }`}>
-                {baseDeclinedList.length}
-              </span>
-            </button>
-
-            {searchTabQuery && (
+            {/* Admin — only if privileged */}
+            {(profile?.role === "superadmin" || profile?.role === "admin") && (
               <button
-                onClick={() => {
-                  setActiveTab("search_results");
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === "search_results"
-                    ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/25"
-                    : "text-zinc-400 hover:text-zinc-200 border border-transparent hover:bg-zinc-900/50"
+                onClick={() => { setActiveTab("admin"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                  activeTab === "admin"
+                    ? "bg-violet-500/10 text-violet-400 border-violet-500/25"
+                    : "text-zinc-500 border-transparent hover:bg-zinc-900/60 hover:text-violet-300"
                 }`}
+                title="Admin Panel"
               >
-                <Search className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Search</span>
-                <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-indigo-500/20 text-indigo-400 rounded-full">
-                  Active
-                </span>
+                <Shield className="w-3.5 h-3.5" />
+                <span>Admin</span>
               </button>
             )}
           </nav>
 
-          {/* Right Section: Friends & Profile Card */}
-          <div className="flex items-center gap-3">
-            {/* Friends Button (Desktop only) */}
+          {/* Right side: Friends + Avatar */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+
+            {/* Friends button */}
             <button
               onClick={() => setShowFriendsPanel(true)}
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900/50 border border-zinc-800/50 hover:border-zinc-700/60 text-zinc-300 hover:text-white transition-all cursor-pointer group"
+              className="relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900/60 border border-zinc-800/60 hover:border-indigo-500/30 text-zinc-400 hover:text-indigo-300 transition-all cursor-pointer"
+              title="Friends"
             >
-              <Users className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-105 transition-all" />
-              <span className="text-xs font-bold">Friends</span>
-              <div className="flex items-center gap-1">
-                {pendingRequests.length > 0 && (
-                  <span className="px-1.5 py-0.5 bg-indigo-500 text-white text-[8px] font-extrabold rounded-full animate-pulse">
-                    {pendingRequests.length}
-                  </span>
-                )}
-                <span className="text-[10px] text-zinc-550 font-bold">({authFriends.length})</span>
-              </div>
+              <Users className="w-3.5 h-3.5" />
+              <span className="text-xs font-bold hidden sm:inline">Friends</span>
+              {pendingRequests.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-indigo-500 text-white text-[8px] font-extrabold rounded-full flex items-center justify-center animate-pulse">
+                  {pendingRequests.length}
+                </span>
+              )}
+              {authFriends.length > 0 && pendingRequests.length === 0 && (
+                <span className="text-[9px] text-zinc-500 font-bold">({authFriends.length})</span>
+              )}
             </button>
 
-            {/* Profile / User Info Card */}
+            {/* Avatar + sign-out */}
             {profile && (
-              <div className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-zinc-900/40 border border-zinc-800/40 max-w-[200px]">
+              <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl bg-zinc-900/40 border border-zinc-800/40">
                 <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white flex-shrink-0"
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-extrabold text-white flex-shrink-0"
                   style={{ backgroundColor: profile.avatar_color || "#6366f1" }}
                 >
                   {(profile.display_name || profile.username).slice(0, 2).toUpperCase()}
                 </div>
-                <div className="hidden sm:block min-w-0 flex-1">
-                  <p className="text-[10px] font-bold text-zinc-200 truncate leading-tight">{profile.display_name}</p>
-                  <p className="text-[8px] text-zinc-500 font-medium truncate -mt-0.5">@{profile.username}</p>
-                </div>
+                <p className="text-[10px] font-bold text-zinc-200 truncate max-w-[80px] hidden sm:block">
+                  {profile.display_name || profile.username}
+                </p>
                 <button
                   onClick={signOut}
-                  className="p-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer flex-shrink-0"
+                  className="p-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
                   title="Sign out"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
+                  <LogOut className="w-3 h-3" />
                 </button>
               </div>
             )}
           </div>
         </div>
       </header>
+
+      {/* ── Mobile Bottom Tab Bar ── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-900 flex items-center justify-around px-2 py-2 select-none">
+        {[
+          { tab: "dashboard",          icon: <LayoutDashboard className="w-5 h-5" />, label: "Home"     },
+          { tab: "unwatched",          icon: <Compass        className="w-5 h-5" />, label: "Unwatched" },
+          { tab: "upcoming_watchlist", icon: <Calendar       className="w-5 h-5" />, label: "Upcoming" },
+          { tab: "watched",            icon: <Trophy         className="w-5 h-5" />, label: "Watched"  },
+          { tab: "declined",           icon: <ThumbsDown     className="w-5 h-5" />, label: "Declined" },
+        ].map(({ tab, icon, label }) => {
+          const isActive = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => { setActiveTab(tab as any); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all cursor-pointer ${
+                isActive ? "text-indigo-400" : "text-zinc-600 hover:text-zinc-400"
+              }`}
+            >
+              {icon}
+              <span className={`text-[9px] font-extrabold uppercase tracking-wider ${isActive ? "text-indigo-400" : "text-zinc-600"}`}>
+                {label}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
 
       {/* Friends Panel Slide-Over */}
       {showFriendsPanel && (
@@ -1756,36 +1773,28 @@ function DashboardInner() {
               </div>
             </div>
 
-            {/* Co-Watch Shelf View Selector for Unwatched */}
+            {/* View List Selector for Unwatched */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
               <span className="text-[8.5px] font-extrabold text-zinc-550 uppercase tracking-widest mr-1.5 flex items-center gap-1 flex-shrink-0">
-                <Users className="w-3.5 h-3.5 text-amber-400" /> Shelf Mode:
+                <Users className="w-3.5 h-3.5 text-amber-400" /> View List:
               </span>
-              
-              <button
-                onClick={() => setUnwatchedViewMode("all")}
-                className={`px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95 duration-200 flex-shrink-0 ${
-                  unwatchedViewMode === "all"
-                    ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
-                    : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                👥 All Unwatched {unwatchedViewMode === "all" ? `(${unwatchedList.length})` : ""}
-              </button>
 
-              {(friends.length > 0 ? friends : ["Me"]).map((friend) => (
-                <button
-                  key={friend}
-                  onClick={() => setUnwatchedViewMode(friend)}
-                  className={`px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95 duration-200 flex-shrink-0 ${
-                    unwatchedViewMode === friend
-                      ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
-                      : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
-                  }`}
-                >
-                  👤 {friend === myName || friend === "Me" ? "Added By Me" : `Added By ${friend}`} {unwatchedViewMode === friend ? `(${unwatchedList.length})` : ""}
-                </button>
-              ))}
+              {(friends.length > 0 ? friends : [myName]).map((friend) => {
+                const isActive = unwatchedViewMode === "my-list" ? (friend === myName) : (unwatchedViewMode === friend);
+                return (
+                  <button
+                    key={friend}
+                    onClick={() => setUnwatchedViewMode(friend === myName ? "my-list" : friend)}
+                    className={`px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95 duration-200 flex-shrink-0 ${
+                      isActive
+                        ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
+                        : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    👤 {friend === myName ? "My List" : `${friend}'s List`} {isActive ? `(${unwatchedList.length})` : ""}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Premium modern clickable capsule pill chips */}
@@ -1849,6 +1858,57 @@ function DashboardInner() {
                   })}
                 </div>
               )}
+
+              {/* Date Added filter */}
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-[9px] font-extrabold text-zinc-550 uppercase tracking-widest mr-2 select-none">Date Added:</span>
+                {[
+                  { label: "All Time", value: "all" },
+                  { label: "Today", value: "today" },
+                  { label: "Last 7 Days", value: "7days" },
+                  { label: "Last 30 Days", value: "30days" },
+                  { label: "Custom Range", value: "custom" }
+                ].map((preset) => {
+                  const isActive = unwatchedDatePreset === preset.value;
+                  return (
+                    <button
+                      key={preset.value}
+                      onClick={() => {
+                        setUnwatchedDatePreset(preset.value);
+                        if (preset.value !== "custom") {
+                          setUnwatchedStartDate("");
+                          setUnwatchedEndDate("");
+                        }
+                      }}
+                      className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
+                        isActive
+                          ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
+                          : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+
+                {unwatchedDatePreset === "custom" && (
+                  <div className="flex items-center gap-1.5 ml-2 animate-fade-in">
+                    <input
+                      type="date"
+                      value={unwatchedStartDate}
+                      onChange={(e) => setUnwatchedStartDate(e.target.value)}
+                      className="px-2 py-0.5 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] text-zinc-200 focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="text-[9px] text-zinc-500 font-bold uppercase">to</span>
+                    <input
+                      type="date"
+                      value={unwatchedEndDate}
+                      onChange={(e) => setUnwatchedEndDate(e.target.value)}
+                      className="px-2 py-0.5 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] text-zinc-200 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             {loading ? (
@@ -1861,16 +1921,20 @@ function DashboardInner() {
                 <div className="w-12 h-12 rounded-2xl bg-zinc-900/50 flex items-center justify-center mx-auto text-zinc-500 text-xl border border-zinc-850 mb-3">
                   🎬
                 </div>
-                <h4 className="text-sm font-bold text-zinc-400">No items found in your queue</h4>
+                <h4 className="text-sm font-bold text-zinc-400">
+                  {unwatchedViewMode === "my-list" ? "Your queue is empty" : `${unwatchedViewMode}'s queue is empty`}
+                </h4>
                 <p className="text-xs text-zinc-500 max-w-sm mx-auto mt-1 leading-relaxed">
-                  {unwatchedFilter 
-                    ? `No logged unwatched items match "${unwatchedFilter}". Try searching something else.`
-                    : "Your queue is completely empty. Search above or trending banner on Home Tab to log titles."}
+                  {unwatchedFilter
+                    ? `No unwatched items match "${unwatchedFilter}". Try searching something else.`
+                    : unwatchedViewMode === "my-list"
+                      ? "Your queue is completely empty. Search above or use the trending section on Home to add titles."
+                      : `${unwatchedViewMode} hasn't added any unwatched titles yet. Browse their list and add any you want to yours!`}
                 </p>
               </div>
             ) : (
               /* High-end Multi-column Grid Layout (up to 6 columns on xl) */
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
                 {unwatchedList.map((movie) => (
                   <MovieCard
                     key={movie.id}
@@ -1882,6 +1946,8 @@ function DashboardInner() {
                     onUpdateFriendRating={handleUpdateFriendRating}
                     onUpdateFriendReview={handleUpdateFriendReview}
                     onCardClick={() => openDetailModal(movie.tmdb_id, movie.category)}
+                    isInMyList={movies.some((m) => m.tmdb_id === movie.tmdb_id && isMovieOwnedByUser(m, myName))}
+                    onAddToMyList={unwatchedViewMode !== "my-list" ? () => handleAddToMyList(movie) : undefined}
                   />
                 ))}
               </div>
@@ -1913,36 +1979,28 @@ function DashboardInner() {
               </div>
             </div>
 
-            {/* Co-Watch Shelf View Selector for Upcoming */}
+            {/* View List Selector for Upcoming */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
               <span className="text-[8.5px] font-extrabold text-zinc-550 uppercase tracking-widest mr-1.5 flex items-center gap-1 flex-shrink-0">
-                <Users className="w-3.5 h-3.5 text-amber-400" /> Shelf Mode:
+                <Users className="w-3.5 h-3.5 text-amber-400" /> View List:
               </span>
-              
-              <button
-                onClick={() => setUpcomingViewMode("all")}
-                className={`px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95 duration-200 flex-shrink-0 ${
-                  upcomingViewMode === "all"
-                    ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
-                    : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                👥 All Upcoming {upcomingViewMode === "all" ? `(${upcomingList.length})` : ""}
-              </button>
 
-              {(friends.length > 0 ? friends : ["Me"]).map((friend) => (
-                <button
-                  key={friend}
-                  onClick={() => setUpcomingViewMode(friend)}
-                  className={`px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95 duration-200 flex-shrink-0 ${
-                    upcomingViewMode === friend
-                      ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
-                      : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
-                  }`}
-                >
-                  👤 {friend === myName || friend === "Me" ? "Added By Me" : `Added By ${friend}`} {upcomingViewMode === friend ? `(${upcomingList.length})` : ""}
-                </button>
-              ))}
+              {(friends.length > 0 ? friends : [myName]).map((friend) => {
+                const isActive = upcomingViewMode === "my-list" ? (friend === myName) : (upcomingViewMode === friend);
+                return (
+                  <button
+                    key={friend}
+                    onClick={() => setUpcomingViewMode(friend === myName ? "my-list" : friend)}
+                    className={`px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95 duration-200 flex-shrink-0 ${
+                      isActive
+                        ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
+                        : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    👤 {friend === myName ? "My List" : `${friend}'s List`} {isActive ? `(${upcomingList.length})` : ""}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Premium modern clickable capsule pill chips */}
@@ -2006,6 +2064,57 @@ function DashboardInner() {
                   })}
                 </div>
               )}
+
+              {/* Date Added filter */}
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-[9px] font-extrabold text-zinc-550 uppercase tracking-widest mr-2 select-none">Date Added:</span>
+                {[
+                  { label: "All Time", value: "all" },
+                  { label: "Today", value: "today" },
+                  { label: "Last 7 Days", value: "7days" },
+                  { label: "Last 30 Days", value: "30days" },
+                  { label: "Custom Range", value: "custom" }
+                ].map((preset) => {
+                  const isActive = upcomingDatePreset === preset.value;
+                  return (
+                    <button
+                      key={preset.value}
+                      onClick={() => {
+                        setUpcomingDatePreset(preset.value);
+                        if (preset.value !== "custom") {
+                          setUpcomingStartDate("");
+                          setUpcomingEndDate("");
+                        }
+                      }}
+                      className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
+                        isActive
+                          ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
+                          : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+
+                {upcomingDatePreset === "custom" && (
+                  <div className="flex items-center gap-1.5 ml-2 animate-fade-in">
+                    <input
+                      type="date"
+                      value={upcomingStartDate}
+                      onChange={(e) => setUpcomingStartDate(e.target.value)}
+                      className="px-2 py-0.5 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] text-zinc-200 focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="text-[9px] text-zinc-500 font-bold uppercase">to</span>
+                    <input
+                      type="date"
+                      value={upcomingEndDate}
+                      onChange={(e) => setUpcomingEndDate(e.target.value)}
+                      className="px-2 py-0.5 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] text-zinc-200 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             {loading ? (
@@ -2027,7 +2136,7 @@ function DashboardInner() {
               </div>
             ) : (
               /* High-end Multi-column Grid Layout (up to 6 columns on xl) */
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
                 {upcomingList.map((movie) => (
                   <MovieCard
                     key={movie.id}
@@ -2039,6 +2148,8 @@ function DashboardInner() {
                     onUpdateFriendRating={handleUpdateFriendRating}
                     onUpdateFriendReview={handleUpdateFriendReview}
                     onCardClick={() => openDetailModal(movie.tmdb_id, movie.category)}
+                    isInMyList={movies.some((m) => m.tmdb_id === movie.tmdb_id && isMovieOwnedByUser(m, myName))}
+                    onAddToMyList={upcomingViewMode !== "my-list" ? () => handleAddToMyList(movie) : undefined}
                   />
                 ))}
               </div>
@@ -2071,36 +2182,28 @@ function DashboardInner() {
               </div>
             </div>
 
-            {/* Co-Watch Shelf View Selector */}
+            {/* View List Selector for Watched */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
               <span className="text-[8.5px] font-extrabold text-zinc-550 uppercase tracking-widest mr-1.5 flex items-center gap-1 flex-shrink-0">
-                <Users className="w-3.5 h-3.5 text-emerald-400" /> Shelf Mode:
+                <Users className="w-3.5 h-3.5 text-emerald-400" /> View List:
               </span>
-              
-              <button
-                onClick={() => setWatchedViewMode("co-watched")}
-                className={`px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95 duration-200 flex-shrink-0 ${
-                  watchedViewMode === "co-watched"
-                    ? "bg-emerald-500 text-zinc-950 font-bold shadow-md shadow-emerald-500/10"
-                    : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                👥 {friends.length === 2 ? "Watched by Both" : friends.length > 2 ? "Watched by Everyone" : "Watched by Me"} {watchedViewMode === "co-watched" ? `(${watchedList.length})` : ""}
-              </button>
 
-              {(friends.length > 0 ? friends : ["Me"]).map((friend) => (
-                <button
-                  key={friend}
-                  onClick={() => setWatchedViewMode(friend)}
-                  className={`px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95 duration-200 flex-shrink-0 ${
-                    watchedViewMode === friend
-                      ? "bg-emerald-500 text-zinc-950 font-bold shadow-md shadow-emerald-500/10"
-                      : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
-                  }`}
-                >
-                  👤 {friend === myName || friend === "Me" ? "My Watch List" : `${friend}'s Watch List`} {watchedViewMode === friend ? `(${watchedList.length})` : ""}
-                </button>
-              ))}
+              {(friends.length > 0 ? friends : [myName]).map((friend) => {
+                const isActive = watchedViewMode === "my-list" ? (friend === myName) : (watchedViewMode === friend);
+                return (
+                  <button
+                    key={friend}
+                    onClick={() => setWatchedViewMode(friend === myName ? "my-list" : friend)}
+                    className={`px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95 duration-200 flex-shrink-0 ${
+                      isActive
+                        ? "bg-emerald-500 text-zinc-950 font-bold shadow-md shadow-emerald-500/10"
+                        : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    👤 {friend === myName ? "My List" : `${friend}'s List`} {isActive ? `(${watchedList.length})` : ""}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Premium modern clickable capsule pill chips */}
@@ -2164,6 +2267,57 @@ function DashboardInner() {
                   })}
                 </div>
               )}
+
+              {/* Date Watched filter */}
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest mr-2 select-none">Date Watched:</span>
+                {[
+                  { label: "All Time", value: "all" },
+                  { label: "Today", value: "today" },
+                  { label: "Last 7 Days", value: "7days" },
+                  { label: "Last 30 Days", value: "30days" },
+                  { label: "Custom Range", value: "custom" }
+                ].map((preset) => {
+                  const isActive = watchedDatePreset === preset.value;
+                  return (
+                    <button
+                      key={preset.value}
+                      onClick={() => {
+                        setWatchedDatePreset(preset.value);
+                        if (preset.value !== "custom") {
+                          setWatchedStartDate("");
+                          setWatchedEndDate("");
+                        }
+                      }}
+                      className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
+                        isActive
+                          ? "bg-emerald-500 text-zinc-950 font-bold shadow-md shadow-emerald-500/10"
+                          : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+
+                {watchedDatePreset === "custom" && (
+                  <div className="flex items-center gap-1.5 ml-2 animate-fade-in">
+                    <input
+                      type="date"
+                      value={watchedStartDate}
+                      onChange={(e) => setWatchedStartDate(e.target.value)}
+                      className="px-2 py-0.5 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] text-zinc-200 focus:outline-none focus:border-emerald-500"
+                    />
+                    <span className="text-[9px] text-zinc-500 font-bold uppercase">to</span>
+                    <input
+                      type="date"
+                      value={watchedEndDate}
+                      onChange={(e) => setWatchedEndDate(e.target.value)}
+                      className="px-2 py-0.5 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] text-zinc-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             {loading ? (
@@ -2185,7 +2339,7 @@ function DashboardInner() {
               </div>
             ) : (
               /* High-end Multi-column Grid Layout (up to 6 columns on xl) */
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
                 {watchedList.map((movie) => (
                   <MovieCard
                     key={movie.id}
@@ -2197,6 +2351,8 @@ function DashboardInner() {
                     onUpdateFriendRating={handleUpdateFriendRating}
                     onUpdateFriendReview={handleUpdateFriendReview}
                     onCardClick={() => openDetailModal(movie.tmdb_id, movie.category)}
+                    isInMyList={movies.some((m) => m.tmdb_id === movie.tmdb_id && isMovieOwnedByUser(m, myName))}
+                    onAddToMyList={watchedViewMode !== "my-list" ? () => handleAddToMyList(movie) : undefined}
                   />
                 ))}
               </div>
@@ -2248,7 +2404,7 @@ function DashboardInner() {
               </div>
             ) : (
               /* High-end Multi-column Grid Layout (up to 6 columns on xl) */
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
                 {declinedList.map((movie) => (
                   <MovieCard
                     key={movie.id}
@@ -2260,6 +2416,7 @@ function DashboardInner() {
                     onUpdateFriendRating={handleUpdateFriendRating}
                     onUpdateFriendReview={handleUpdateFriendReview}
                     onCardClick={() => openDetailModal(movie.tmdb_id, movie.category)}
+                    isInMyList={true}
                   />
                 ))}
               </div>
@@ -2498,7 +2655,10 @@ function DashboardInner() {
           </div>
         )}
 
-
+        {/* VIEW 5: ADMIN PANEL */}
+        {activeTab === "admin" && (profile?.role === "superadmin" || profile?.role === "admin") && (
+          <AdminPanel />
+        )}
 
       </main>
 
@@ -2601,6 +2761,21 @@ function DashboardInner() {
           >
             <Search className="w-5 h-5 text-indigo-400" />
             <span className="text-[9px] font-bold">Search</span>
+          </button>
+        )}
+
+        {(profile?.role === "superadmin" || profile?.role === "admin") && (
+          <button
+            onClick={() => {
+              setActiveTab("admin");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
+              activeTab === "admin" ? "text-violet-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
+            }`}
+          >
+            <Shield className="w-5 h-5 text-violet-400" />
+            <span className="text-[9px] font-bold">Admin</span>
           </button>
         )}
 

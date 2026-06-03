@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Film, Check, ThumbsDown } from "lucide-react";
+import { Film, Check, ThumbsDown, Plus } from "lucide-react";
 import { Movie } from "@/types";
 
 interface MovieCardProps {
@@ -13,6 +13,8 @@ interface MovieCardProps {
   onUpdateFriendRating: (id: string, friendName: string, rating: number) => Promise<void>;
   onUpdateFriendReview: (id: string, friendName: string, review: string) => Promise<void>;
   onCardClick?: () => void;
+  isInMyList?: boolean;
+  onAddToMyList?: () => void;
 }
 
 export default function MovieCard({
@@ -24,6 +26,8 @@ export default function MovieCard({
   onUpdateFriendRating,
   onUpdateFriendReview,
   onCardClick,
+  isInMyList = true,
+  onAddToMyList,
 }: MovieCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [localReleaseDate, setLocalReleaseDate] = useState<string | null>(movie.release_date || null);
@@ -182,6 +186,10 @@ export default function MovieCard({
 
   const metadataText = metaItems.join("  •  ");
 
+  const today = new Date().toISOString().split("T")[0];
+  const effectiveReleaseDate = localReleaseDate || movie.release_date;
+  const isUpcoming = effectiveReleaseDate ? effectiveReleaseDate > today : false;
+
   return (
     <article className="flex flex-col gap-2 p-2.5 bg-zinc-900/50 hover:bg-zinc-900/80 border border-zinc-800/80 hover:border-indigo-500/25 rounded-2xl transition-all duration-300 shadow-lg group relative overflow-hidden h-full justify-between max-w-[180px] sm:max-w-[200px] w-full mx-auto">
       {/* Movie Poster thumbnail */}
@@ -267,8 +275,34 @@ export default function MovieCard({
         </div>
 
         {/* Footer actions row */}
-        <div className="mt-3.5 pt-2 border-t border-zinc-800/40 select-none w-full">
-          {renderActionButtons()}
+        <div className="mt-3.5 pt-2 border-t border-zinc-800/40 select-none w-full flex flex-col gap-1.5">
+          {onAddToMyList && (
+            isInMyList ? (
+              <div
+                className="w-full h-[28px] rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center gap-1 text-[9px] font-extrabold select-none uppercase tracking-wider"
+                title="This movie is already in your personal list"
+              >
+                <Check className="w-3 h-3" />
+                <span>In Your List</span>
+              </div>
+            ) : (
+              <button
+                onClick={(e) => { e.stopPropagation(); onAddToMyList(); }}
+                className="w-full h-[28px] rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 hover:text-indigo-300 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 duration-200 text-[9px] font-bold"
+                title="Add this to your personal list"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Add to My List</span>
+              </button>
+            )
+          )}
+          {isUpcoming ? (
+            <div className="w-full h-[28px] rounded-lg bg-indigo-500/5 border border-indigo-500/10 text-indigo-400/90 flex items-center justify-center gap-1.5 text-[8.5px] font-extrabold uppercase tracking-widest select-none">
+              ⏳ Coming Soon
+            </div>
+          ) : (
+            renderActionButtons()
+          )}
         </div>
       </div>
     </article>

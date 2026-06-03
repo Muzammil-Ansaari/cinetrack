@@ -1,28 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
+// Supabase has been deprecated in favor of native MongoDB auth.
+// This file is kept only for backwards compatibility of types and references.
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-// Detect if Supabase is properly configured
-export const isSupabaseConfigured =
-  supabaseUrl.trim() !== '' &&
-  supabaseAnonKey.trim() !== '';
-
-// Initialize client (fallback silently to null if credentials aren't supplied yet)
-export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-      },
-    })
-  : null;
-
-// Type helpers
-export type SupabaseUser = {
-  id: string;
-  email?: string;
-};
+export const isSupabaseConfigured = false;
+export const supabase = null;
 
 export type Profile = {
   id: string;
@@ -30,6 +10,7 @@ export type Profile = {
   display_name: string;
   avatar_color: string;
   created_at: string;
+  role?: string;
 };
 
 export type Friendship = {
