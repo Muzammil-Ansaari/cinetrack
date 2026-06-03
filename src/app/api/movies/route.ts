@@ -12,6 +12,49 @@ async function getCollection() {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const migrate = searchParams.get("migrate");
+
+    if (migrate === "true") {
+      const collection = await getCollection();
+      const movies = await collection.find({
+        $or: [
+          { release_date: { $exists: false } },
+          { release_date: null },
+          { release_date: "" }
+        ]
+      }).toArray();
+
+      const TMDB_API_KEY = process.env.TMDB_API_KEY;
+      if (!TMDB_API_KEY) {
+        return NextResponse.json({ error: "Server TMDB key missing" }, { status: 500 });
+      }
+
+      const updated = [];
+      for (const movie of movies) {
+        if (!movie.release_date) {
+          try {
+            const isTv = movie.category === "TV Show" || movie.category === "Anime";
+            const mediaType = isTv ? "tv" : "movie";
+            const res = await fetch(`https://api.themoviedb.org/3/${mediaType}/${movie.tmdb_id}?api_key=${TMDB_API_KEY}&language=en-US`);
+            if (res.ok) {
+              const data = await res.json();
+              const releaseDate = data.release_date || data.first_air_date || null;
+              if (releaseDate) {
+                await collection.updateOne(
+                  { _id: movie._id },
+                  { $set: { release_date: releaseDate } }
+                );
+                updated.push({ title: movie.title, release_date: releaseDate });
+              }
+            }
+          } catch (err: any) {
+            console.error(`Failed migrating release_date for ${movie.title}:`, err);
+          }
+        }
+      }
+      return NextResponse.json({ success: true, migrated: updated });
+    }
+
     const userIdsStr = searchParams.get("userIds");
 
     if (!userIdsStr) {

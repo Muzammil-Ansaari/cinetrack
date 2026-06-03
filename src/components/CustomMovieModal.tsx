@@ -16,6 +16,7 @@ interface CustomMovieModalProps {
     poster_path: string;
     watched: boolean;
     seasons?: number;
+    episodes?: number;
   }) => Promise<void>;
 }
 
@@ -29,6 +30,7 @@ export default function CustomMovieModal({ isOpen, onClose, onSave }: CustomMovi
   const [gradientPreset, setGradientPreset] = useState("indigo-pink");
   const [watched, setWatched] = useState(false);
   const [seasons, setSeasons] = useState("1");
+  const [episodes, setEpisodes] = useState("12");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -50,6 +52,7 @@ export default function CustomMovieModal({ isOpen, onClose, onSave }: CustomMovi
         poster_path: `custom-gradient:${gradientPreset}`,
         watched,
         seasons: isTv ? parseInt(seasons) || 1 : undefined,
+        episodes: isTv ? parseInt(episodes) || 12 : undefined,
       });
 
       // Reset
@@ -62,6 +65,7 @@ export default function CustomMovieModal({ isOpen, onClose, onSave }: CustomMovi
       setGradientPreset("indigo-pink");
       setWatched(false);
       setSeasons("1");
+      setEpisodes("12");
       onClose();
     } catch (err) {
       console.error("Failed to create custom entry:", err);
@@ -156,7 +160,9 @@ export default function CustomMovieModal({ isOpen, onClose, onSave }: CustomMovi
           </div>
 
           {/* Conditional Seasons / Runtime Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className={`grid grid-cols-1 gap-4 ${
+            category === "TV Show" || category === "Anime" ? "sm:grid-cols-4" : "sm:grid-cols-3"
+          }`}>
             <div className="space-y-1.5">
               <label className="font-extrabold text-zinc-350 tracking-wider uppercase text-[9px] flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" /> Release Year
@@ -185,19 +191,34 @@ export default function CustomMovieModal({ isOpen, onClose, onSave }: CustomMovi
             </div>
 
             {(category === "TV Show" || category === "Anime") && (
-              <div className="space-y-1.5 animate-fade-in">
-                <label className="font-extrabold text-zinc-350 tracking-wider uppercase text-[9px] flex items-center gap-1">
-                  <Hash className="w-3.5 h-3.5" /> Seasons
-                </label>
-                <input
-                  type="number"
-                  value={seasons}
-                  onChange={(e) => setSeasons(e.target.value)}
-                  placeholder="1"
-                  min="1"
-                  className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-300 placeholder-zinc-650 focus:outline-none focus:border-indigo-500/80 text-xs text-center"
-                />
-              </div>
+              <>
+                <div className="space-y-1.5 animate-fade-in">
+                  <label className="font-extrabold text-zinc-350 tracking-wider uppercase text-[9px] flex items-center gap-1">
+                    <Hash className="w-3.5 h-3.5" /> Seasons
+                  </label>
+                  <input
+                    type="number"
+                    value={seasons}
+                    onChange={(e) => setSeasons(e.target.value)}
+                    placeholder="1"
+                    min="1"
+                    className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-300 placeholder-zinc-650 focus:outline-none focus:border-indigo-500/80 text-xs text-center"
+                  />
+                </div>
+                <div className="space-y-1.5 animate-fade-in">
+                  <label className="font-extrabold text-zinc-350 tracking-wider uppercase text-[9px] flex items-center gap-1">
+                    <Hash className="w-3.5 h-3.5" /> Episodes
+                  </label>
+                  <input
+                    type="number"
+                    value={episodes}
+                    onChange={(e) => setEpisodes(e.target.value)}
+                    placeholder="12"
+                    min="1"
+                    className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-300 placeholder-zinc-650 focus:outline-none focus:border-indigo-500/80 text-xs text-center"
+                  />
+                </div>
+              </>
             )}
           </div>
 

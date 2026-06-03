@@ -41,7 +41,7 @@ export default function StatsPanel({
   };
 
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 select-none animate-fade-in">
+    <section className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 select-none animate-fade-in">
       {/* Stat Card 1: Total Cinema Time */}
       <div className="bg-zinc-900 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between shadow-sm hover:border-zinc-700 transition-colors">
         <div className="flex items-center justify-between text-zinc-400">
@@ -107,7 +107,7 @@ export default function StatsPanel({
       </div>
 
       {/* Stat Card 5: Library Progress */}
-      <div className="bg-zinc-900 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between shadow-sm hover:border-zinc-700 transition-colors">
+      <div className="bg-zinc-900 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between shadow-sm hover:border-zinc-700 transition-colors col-span-2 sm:col-span-1">
         <div className="flex items-center justify-between text-zinc-400">
           <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-450">Co-Watch Progress</span>
           <span className="text-xs font-black text-white leading-none">{clampedCompletionRate}%</span>

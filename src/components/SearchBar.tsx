@@ -180,70 +180,87 @@ export default function SearchBar({ onAddMovie, isTracked, onSearchSubmit }: Sea
               return (
                 <div
                   key={movie.id}
-                  className="px-4 py-3 flex items-center gap-4 hover:bg-zinc-900/60 transition-colors"
+                  className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 hover:bg-zinc-900/60 transition-colors"
                 >
-                  {/* Poster Thumbnail */}
-                  <div className="w-9 h-12 rounded bg-zinc-900 overflow-hidden flex-shrink-0 border border-zinc-800 shadow-sm select-none relative flex items-center justify-center">
-                    {posterUrl ? (
-                      <>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={posterUrl}
-                          alt={movie.title}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            const sibling = e.currentTarget.nextElementSibling;
-                            if (sibling) {
-                              sibling.classList.remove('hidden');
-                            }
-                          }}
-                        />
-                        {/* Compact Search Fallback Gradient */}
-                        <div className="fallback-placeholder hidden absolute inset-0 bg-gradient-to-br from-indigo-950 via-zinc-900 to-purple-950/80 flex items-center justify-center text-[7px] font-extrabold text-zinc-400 select-none uppercase tracking-widest text-center p-0.5">
-                          {movie.title.slice(0, 3)}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-zinc-600 text-[8px] font-bold text-center">
-                        NO POSTER
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Movie Info */}
-                  <div className="flex-grow min-w-0 select-none">
-                    <h4 className="text-sm font-bold text-zinc-100 truncate">{movie.title}</h4>
-                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-500 font-medium mt-0.5">
-                      {movie.category && (
-                        <span className={`px-1 rounded text-[7px] font-extrabold uppercase ${
-                          movie.category === "Anime"
-                            ? "bg-purple-500/10 text-purple-400 border border-purple-500/10"
-                            : movie.category === "TV Show"
-                            ? "bg-blue-500/10 text-blue-400 border border-blue-500/10"
-                            : movie.category === "Animated Movie"
-                            ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/10"
-                            : "bg-zinc-800 text-zinc-400 border border-zinc-700/40"
-                        }`}>
-                          {movie.category}
-                        </span>
-                      )}
-                      <span>{year}</span>
-                      <span className="w-0.5 h-0.5 rounded-full bg-zinc-700" />
-                      <span className="text-amber-500">⭐ {rating}</span>
-                      {movie.seasons && (
+                  {/* First Row: Poster + Info */}
+                  <div className="flex items-start gap-3 sm:gap-4 flex-grow min-w-0">
+                    {/* Poster Thumbnail */}
+                    <div className="w-9 h-12 rounded bg-zinc-900 overflow-hidden flex-shrink-0 border border-zinc-800 shadow-sm select-none relative flex items-center justify-center">
+                      {posterUrl ? (
                         <>
-                          <span className="w-0.5 h-0.5 rounded-full bg-zinc-700" />
-                          <span className="text-zinc-400 font-semibold">{movie.seasons} {movie.seasons === 1 ? "Season" : "Seasons"}</span>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={posterUrl}
+                            alt={movie.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              const sibling = e.currentTarget.nextElementSibling;
+                              if (sibling) {
+                                sibling.classList.remove('hidden');
+                              }
+                            }}
+                          />
+                          {/* Compact Search Fallback Gradient */}
+                          <div className="fallback-placeholder hidden absolute inset-0 bg-gradient-to-br from-indigo-950 via-zinc-900 to-purple-950/80 flex items-center justify-center text-[7px] font-extrabold text-zinc-400 select-none uppercase tracking-widest text-center p-0.5">
+                            {movie.title.slice(0, 3)}
+                          </div>
                         </>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-zinc-600 text-[8px] font-bold text-center">
+                          NO POSTER
+                        </div>
                       )}
+                    </div>
+
+                    {/* Movie Info */}
+                    <div className="flex-grow min-w-0 select-none">
+                      <h4 className="text-sm font-bold text-zinc-100 truncate">{movie.title}</h4>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-500 font-medium mt-0.5">
+                        {movie.category && (
+                          <span className={`px-1 rounded text-[7px] font-extrabold uppercase ${
+                            movie.category === "Anime"
+                              ? "bg-purple-500/10 text-purple-400 border border-purple-500/10"
+                              : movie.category === "TV Show"
+                              ? "bg-blue-500/10 text-blue-400 border border-blue-500/10"
+                              : movie.category === "Animated Movie"
+                              ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/10"
+                              : "bg-zinc-800 text-zinc-400 border border-zinc-700/40"
+                          }`}>
+                            {movie.category}
+                          </span>
+                        )}
+                        <span>{year}</span>
+                        <span className="w-0.5 h-0.5 rounded-full bg-zinc-700" />
+                        <span className="text-amber-500">⭐ {rating}</span>
+                        {movie.seasons && (
+                          <>
+                            <span className="w-0.5 h-0.5 rounded-full bg-zinc-700" />
+                            <span className="text-zinc-400 font-semibold">{movie.seasons} {movie.seasons === 1 ? "season" : "seasons"}</span>
+                          </>
+                        )}
+                        {movie.episodes && (
+                          <>
+                            <span className="w-0.5 h-0.5 rounded-full bg-zinc-700" />
+                            <span className="text-zinc-450 font-semibold">{movie.episodes} eps</span>
+                          </>
+                        )}
+                        {movie.runtime && (
+                          <>
+                            <span className="w-0.5 h-0.5 rounded-full bg-zinc-700" />
+                            <span className="text-zinc-450 font-semibold">
+                              {movie.runtime}m
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Action Triggers */}
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {/* Second Row: Action Triggers */}
+                  <div className="flex items-center gap-1.5 w-full sm:w-auto mt-2 sm:mt-0 select-none pl-12 sm:pl-0">
                     {movieTracked ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-zinc-900/80 border border-zinc-850 text-zinc-500 text-[10px] font-semibold rounded-lg select-none">
+                      <span className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-zinc-900/80 border border-zinc-850 text-zinc-500 text-[10px] font-semibold rounded-lg select-none w-full sm:w-auto">
                         <Check className="w-3 h-3 text-emerald-500" /> Tracked
                       </span>
                     ) : (
@@ -251,14 +268,14 @@ export default function SearchBar({ onAddMovie, isTracked, onSearchSubmit }: Sea
                         <button
                           onClick={() => handleAdd(movie, false)}
                           disabled={addingState[`${movie.id}-false`]}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-[10px] font-bold rounded-lg border border-zinc-800 shadow-sm active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                          className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-[10px] font-bold rounded-lg border border-zinc-800 shadow-sm active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                         >
                           <Plus className="w-3 h-3 text-zinc-400" /> Queue
                         </button>
                         <button
                           onClick={() => handleAdd(movie, true)}
                           disabled={addingState[`${movie.id}-true`]}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white hover:bg-zinc-100 text-zinc-950 text-[10px] font-bold rounded-lg shadow-sm active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                          className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-white hover:bg-zinc-100 text-zinc-950 text-[10px] font-bold rounded-lg shadow-sm active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                         >
                           <Check className="w-3 h-3 text-zinc-950" /> Watched
                         </button>
