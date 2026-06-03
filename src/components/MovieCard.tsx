@@ -106,12 +106,88 @@ export default function MovieCard({
   const watchedBy = movie.watched_by ? movie.watched_by.split(", ").filter(Boolean) : [];
   const declinedBy = movie.declined_by ? movie.declined_by.split(", ").filter(Boolean) : [];
 
+  const renderActionButtons = () => {
+    return (
+      <div className="grid grid-cols-2 gap-1.5 w-full select-none">
+        {/* User-specific Mark as Watched Toggle */}
+        {watchedBy.includes(myName) ? (
+          <button
+            onClick={() => onToggleFriendWatched(movie.id, myName)}
+            className="h-[28px] rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/35 text-emerald-450 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 duration-200 shadow-sm text-[9px] font-bold"
+            title="You watched this — click to unmark"
+          >
+            <Check className="w-3 h-3 stroke-[2.5]" />
+            <span>Watched</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => onToggleFriendWatched(movie.id, myName)}
+            className="h-[28px] rounded-lg bg-zinc-950 hover:bg-amber-500 border border-zinc-800 hover:border-amber-500 text-zinc-400 hover:text-zinc-950 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 duration-200 shadow-sm text-[9px] font-bold"
+            title="Mark as watched"
+          >
+            <Check className="w-3 h-3" />
+            <span>Watched</span>
+          </button>
+        )}
+
+        {/* Decline / Not Interested Button */}
+        {declinedBy.includes(myName) ? (
+          <button
+            onClick={() => onToggleDeclined(movie.id, myName)}
+            className="h-[28px] rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 text-amber-550 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 duration-200 shadow-sm text-[9px] font-bold"
+            title="You declined this — click to restore"
+          >
+            <ThumbsDown className="w-3 h-3 stroke-[2.5]" />
+            <span>Declined</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => onToggleDeclined(movie.id, myName)}
+            className="h-[28px] rounded-lg bg-zinc-950 hover:bg-red-500/15 border border-zinc-800 hover:border-red-500/40 text-zinc-650 hover:text-red-400 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 duration-200 shadow-sm text-[9px] font-bold"
+            title="Not Interested / Decline"
+          >
+            <ThumbsDown className="w-3 h-3" />
+            <span>Decline</span>
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  // Compile a clean list of metadata items
+  const metaItems: string[] = [];
+  const fullDate = formatReleaseDate(localReleaseDate) || formatReleaseDate(movie.release_date);
+  if (fullDate) {
+    metaItems.push(fullDate);
+  } else if (movie.release_year) {
+    metaItems.push(movie.release_year);
+  }
+
+  if (movie.category === "TV Show" || movie.category === "Anime") {
+    if (movie.seasons) {
+      metaItems.push(`${movie.seasons} ${movie.seasons === 1 ? "Season" : "Seasons"}`);
+    } else if (movie.episodes) {
+      metaItems.push(`${movie.episodes} ${movie.episodes === 1 ? "Ep" : "Eps"}`);
+    }
+  } else {
+    const formattedRuntime = formatRuntime(movie.runtime);
+    if (formattedRuntime !== "N/A") {
+      metaItems.push(formattedRuntime);
+    }
+  }
+
+  if (movie.global_rating !== undefined && movie.global_rating !== null && movie.global_rating > 0) {
+    metaItems.push(`⭐ ${movie.global_rating.toFixed(1)}`);
+  }
+
+  const metadataText = metaItems.join("  •  ");
+
   return (
-    <article className="flex flex-col sm:flex-row gap-2.5 sm:gap-4 p-2.5 sm:p-3 bg-zinc-900/50 hover:bg-zinc-900/80 border border-zinc-800/80 hover:border-indigo-500/25 rounded-2xl transition-all duration-300 shadow-lg group relative overflow-hidden">
+    <article className="flex flex-col gap-2 p-2.5 bg-zinc-900/50 hover:bg-zinc-900/80 border border-zinc-800/80 hover:border-indigo-500/25 rounded-2xl transition-all duration-300 shadow-lg group relative overflow-hidden h-full justify-between max-w-[180px] sm:max-w-[200px] w-full mx-auto">
       {/* Movie Poster thumbnail */}
       <div 
         onClick={onCardClick}
-        className="w-full aspect-[2/3] sm:w-[100px] sm:h-[145px] bg-zinc-950 rounded-xl overflow-hidden border border-zinc-800 shadow-md flex-shrink-0 relative select-none flex items-center justify-center cursor-pointer hover:border-indigo-500/40 hover:shadow-[0_0_12px_rgba(99,102,241,0.2)] active:scale-95 transition-all duration-300"
+        className="w-full aspect-[2/3] bg-zinc-950 rounded-xl overflow-hidden border border-zinc-800 shadow-md flex-shrink-0 relative select-none flex items-center justify-center cursor-pointer hover:border-indigo-500/40 hover:shadow-[0_0_12px_rgba(99,102,241,0.2)] active:scale-95 transition-all duration-300"
         title="Click to view details, episodes & trailer"
       >
         {isCustomGradient ? (
@@ -152,132 +228,47 @@ export default function MovieCard({
             <span className="text-[7.5px] font-bold uppercase tracking-wider">No Poster</span>
           </div>
         )}
+
+        {/* Top-Left Category Badge on Poster */}
+        {movie.category && (
+          <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-zinc-950/90 text-zinc-100 border border-zinc-800 text-[7px] font-extrabold uppercase tracking-wider backdrop-blur-[2px] select-none z-10">
+            {movie.category}
+          </span>
+        )}
       </div>
 
       {/* Movie Main Metadata */}
-      <div className="flex-grow min-w-0 flex flex-col justify-between py-0.5">
+      <div className="flex-grow min-w-0 flex flex-col justify-between pt-2 pb-0.5 px-0.5">
         <div>
-          {/* Top row: Added by and Category badges */}
-          <div className="flex items-center justify-between gap-2 mb-1.5 select-none">
-            {addedBy && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-950/40 text-indigo-400 border border-indigo-500/20 rounded-full text-[7.5px] font-black uppercase tracking-wider">
-                📥 {addedBy}
-              </span>
-            )}
-            {movie.category && (
-              <span className={`px-1.5 py-0.5 rounded text-[7px] font-extrabold uppercase tracking-wider ${
-                movie.category === "Anime" 
-                  ? "bg-purple-500/10 text-purple-400 border border-purple-500/10"
-                  : movie.category === "TV Show"
-                  ? "bg-blue-500/10 text-blue-400 border border-blue-500/10"
-                  : movie.category === "Animated Movie"
-                  ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/10"
-                  : "bg-zinc-800 text-zinc-400 border border-zinc-700/50"
-              }`}>
-                {movie.category}
-              </span>
-            )}
-          </div>
-
-          {/* Header row: Title & Action buttons */}
-          <div className="flex items-start justify-between gap-3 w-full">
+          {/* Header row: Title */}
+          <div className="w-full">
             <h3 
               onClick={onCardClick}
-              className="text-[14.5px] font-black text-zinc-100 select-all line-clamp-2 leading-tight flex-1 min-w-0 cursor-pointer hover:text-indigo-400 transition-colors" 
+              className="text-[13px] sm:text-[14px] font-extrabold text-zinc-100 select-all line-clamp-2 leading-tight cursor-pointer hover:text-indigo-400 transition-colors" 
               title="Click to view details, episodes & trailer"
             >
               {movie.title}
             </h3>
-            
-            <div className="flex items-center gap-1.5 flex-shrink-0 select-none">
-              {/* User-specific Mark as Watched Toggle */}
-              {watchedBy.includes(myName) ? (
-                <button
-                  onClick={() => onToggleFriendWatched(movie.id, myName)}
-                  className="w-7 h-7 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/35 text-emerald-450 flex items-center justify-center cursor-pointer transition-all active:scale-90 duration-200 shadow-sm"
-                  title="You watched this — click to unmark"
-                >
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                </button>
-              ) : (
-                <button
-                  onClick={() => onToggleFriendWatched(movie.id, myName)}
-                  className="w-7 h-7 rounded-lg bg-zinc-950 hover:bg-amber-500 border border-zinc-800 hover:border-amber-500 text-zinc-400 hover:text-zinc-950 flex items-center justify-center cursor-pointer transition-all active:scale-90 duration-200 shadow-sm"
-                  title="Mark as watched"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                </button>
-              )}
-
-              {/* Decline / Not Interested Button */}
-              {declinedBy.includes(myName) ? (
-                <button
-                  onClick={() => onToggleDeclined(movie.id, myName)}
-                  className="w-7 h-7 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 text-amber-550 flex items-center justify-center cursor-pointer transition-all active:scale-90 duration-200 shadow-sm"
-                  title="You declined this — click to restore"
-                >
-                  <ThumbsDown className="w-3.5 h-3.5 stroke-[3]" />
-                </button>
-              ) : (
-                <button
-                  onClick={() => onToggleDeclined(movie.id, myName)}
-                  className="w-7 h-7 rounded-lg bg-zinc-950 hover:bg-red-500/15 border border-zinc-800 hover:border-red-500/40 text-zinc-650 hover:text-red-400 flex items-center justify-center cursor-pointer transition-all active:scale-90 duration-200 shadow-sm"
-                  title="Not Interested / Decline"
-                >
-                  <ThumbsDown className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
           </div>
 
           {/* Formats, ratings metadata row */}
-          <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-bold text-zinc-500 mt-1 select-none">
-            <span>{formatReleaseDate(localReleaseDate) || movie.release_year || "N/A"}</span>
-            <span className="w-0.5 h-0.5 rounded-full bg-zinc-750" />
-            <span>{formatRuntime(movie.runtime)}</span>
-            {movie.seasons && (
-              <>
-                <span className="w-0.5 h-0.5 rounded-full bg-zinc-750" />
-                <span className="text-zinc-400 font-semibold">{movie.seasons} {movie.seasons === 1 ? "Season" : "Seasons"}</span>
-              </>
-            )}
-            {movie.episodes && (
-              <>
-                <span className="w-0.5 h-0.5 rounded-full bg-zinc-750" />
-                <span className="text-zinc-400 font-semibold">{movie.episodes} {movie.episodes === 1 ? "Episode" : "Episodes"}</span>
-              </>
-            )}
-            {movie.global_rating !== undefined && movie.global_rating !== null && (
-              <>
-                <span className="w-0.5 h-0.5 rounded-full bg-zinc-750" />
-                <span className="text-amber-500 font-semibold">⭐ {movie.global_rating.toFixed(1)}</span>
-              </>
-            )}
-          </div>
+          {metadataText && (
+            <div className="text-[9.5px] font-semibold text-zinc-400/90 select-none leading-normal mt-1">
+              {metadataText}
+            </div>
+          )}
 
           {/* Clean Dot-separated Genres Row */}
           {movie.genres && (
-            <p className="text-[8.5px] text-indigo-400/90 font-extrabold uppercase tracking-wider mt-1.5 select-none leading-none">
-              {movie.genres.split(", ").join(" • ")}
+            <p className="text-[8px] text-indigo-400/80 font-bold uppercase tracking-wider mt-1.5 select-none leading-none truncate">
+              {movie.genres.split(", ").slice(0, 2).join(" • ")}
             </p>
           )}
+        </div>
 
-          {/* Synopsis (Stateful Expandable Synopsis) */}
-          {movie.synopsis && (
-            <div className="mt-2 text-[10px] leading-relaxed select-text">
-              <p className={(isExpanded || movie.synopsis.length <= 80) ? "text-zinc-450" : "line-clamp-2 text-zinc-500"}>
-                {movie.synopsis}
-              </p>
-              {movie.synopsis.length > 80 && (
-                <button
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="text-[8px] text-indigo-450 hover:text-indigo-400 font-extrabold uppercase tracking-wider mt-1 cursor-pointer transition-colors"
-                >
-                  {isExpanded ? "Collapse Synopsis ▲" : "Read Full Synopsis ▼"}
-                </button>
-              )}
-            </div>
-          )}
+        {/* Footer actions row */}
+        <div className="mt-3.5 pt-2 border-t border-zinc-800/40 select-none w-full">
+          {renderActionButtons()}
         </div>
       </div>
     </article>

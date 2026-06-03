@@ -1869,8 +1869,8 @@ function DashboardInner() {
                 </p>
               </div>
             ) : (
-              /* High-end Multi-column Grid Layout (2 columns on md, 3 on xl) */
-              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
+              /* High-end Multi-column Grid Layout (up to 6 columns on xl) */
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                 {unwatchedList.map((movie) => (
                   <MovieCard
                     key={movie.id}
@@ -2026,8 +2026,8 @@ function DashboardInner() {
                 </p>
               </div>
             ) : (
-              /* High-end Multi-column Grid Layout (2 columns on md, 3 on xl) */
-              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
+              /* High-end Multi-column Grid Layout (up to 6 columns on xl) */
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                 {upcomingList.map((movie) => (
                   <MovieCard
                     key={movie.id}
@@ -2184,8 +2184,8 @@ function DashboardInner() {
                 </p>
               </div>
             ) : (
-              /* High-end Multi-column Grid Layout (2 columns on md, 3 on xl) */
-              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
+              /* High-end Multi-column Grid Layout (up to 6 columns on xl) */
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                 {watchedList.map((movie) => (
                   <MovieCard
                     key={movie.id}
@@ -2247,8 +2247,8 @@ function DashboardInner() {
                 </p>
               </div>
             ) : (
-              /* High-end Multi-column Grid Layout (2 columns on md, 3 on xl) */
-              <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
+              /* High-end Multi-column Grid Layout (up to 6 columns on xl) */
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
                 {declinedList.map((movie) => (
                   <MovieCard
                     key={movie.id}
