@@ -1776,10 +1776,8 @@ function DashboardInner() {
               </div>
             ) : (
               <StatsPanel
-                totalMovies={movies.length}
                 unwatchedCount={baseMyUnwatchedList.length}
                 myWatchedCount={baseMyWatchedList.length}
-                coWatchedCount={baseCommonWatchedList.length}
                 totalRuntime={totalWatchedRuntime}
               />
             )}
@@ -2856,19 +2854,6 @@ function DashboardInner() {
             <span className="text-[9px] font-bold">Search</span>
           </button>
         )}
-
-        <button
-          onClick={() => {
-            setActiveTab("settings");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
-            activeTab === "settings" ? "text-indigo-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
-          }`}
-        >
-          <Settings className="w-5 h-5" />
-          <span className="text-[9px] font-bold">Account</span>
-        </button>
       </div>
 
       {/* Floating Dynamic Toast Notification */}

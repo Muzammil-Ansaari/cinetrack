@@ -1,21 +1,16 @@
 "use client";
 
-import React from "react";
-import { Clock, BookOpen, Award, CheckCircle, TrendingUp } from "lucide-react";
+import { Clock, BookOpen, CheckCircle } from "lucide-react";
 
 interface StatsPanelProps {
-  totalMovies: number;
   unwatchedCount: number;
   myWatchedCount: number;
-  coWatchedCount: number;
   totalRuntime: number; // in minutes
 }
 
 export default function StatsPanel({
-  totalMovies,
   unwatchedCount,
   myWatchedCount,
-  coWatchedCount,
   totalRuntime,
 }: StatsPanelProps) {
   const formatWatchTime = (minutes: number) => {
@@ -24,16 +19,6 @@ export default function StatsPanel({
     const remainingMinutes = minutes % 60;
     if (hours === 0) return `${remainingMinutes}m`;
     return `${hours}h ${remainingMinutes > 0 ? ` ${remainingMinutes}m` : ""}`;
-  };
-
-  const completionRate = totalMovies > 0 ? Math.round((coWatchedCount / totalMovies) * 100) : 0;
-  const clampedCompletionRate = Math.min(completionRate, 100);
-
-  const getProgressStatus = () => {
-    if (totalMovies === 0) return "Add some titles to start tracking.";
-    if (clampedCompletionRate === 0) return "No co-watched titles yet.";
-    if (clampedCompletionRate === 100) return "Entire library completed by all! 🏆";
-    return `${clampedCompletionRate}% of library co-watched together.`;
   };
 
   const stats = [
@@ -93,24 +78,6 @@ export default function StatsPanel({
             </div>
           );
         })}
-      </div>
-
-      {/* Co-Watch Progress Bar */}
-      <div className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4 md:p-5 flex flex-col gap-3 hover:border-zinc-700/60 transition-colors shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-500">Co-Watch Progress</span>
-          </div>
-          <span className="text-sm font-black text-white">{clampedCompletionRate}%</span>
-        </div>
-        <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 rounded-full transition-all duration-700 ease-out"
-            style={{ width: `${clampedCompletionRate}%` }}
-          />
-        </div>
-        <span className="text-[9.5px] text-zinc-500 font-medium -mt-1">{getProgressStatus()}</span>
       </div>
     </section>
   );
