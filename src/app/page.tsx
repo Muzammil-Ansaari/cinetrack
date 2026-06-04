@@ -493,18 +493,8 @@ function DashboardInner() {
 
   // 🔴 Refetch activities from MongoDB API endpoint
   const refetchActivities = useCallback(async () => {
-    if (!user) return;
-    try {
-      const response = await fetch(`/api/activities?userIds=${encodeURIComponent(coWatchGroupUserIds.join(","))}`);
-      if (!response.ok) throw new Error("Failed to fetch activities from MongoDB");
-      const { results } = await response.json();
-      if (results) {
-        setActivities(results);
-      }
-    } catch (err) {
-      console.error("Failed to refetch activities from MongoDB:", err);
-    }
-  }, [user?.id, coWatchGroupUserIds]);
+    // No-op: Activities removed from DB and UI to save space
+  }, []);
 
   // 🔴 Refetch movies from MongoDB API endpoint — keep rows per user (no merging)
   const refetchMovies = useCallback(async () => {
@@ -654,34 +644,9 @@ function DashboardInner() {
   };
 
   // Add a new activity log
-  const logActivity = async (type: ActivityLog["type"], title: string, category: string, details: string) => {
-    const newLog: ActivityLog = {
-      id: Math.random().toString(36).substr(2, 9),
-      type,
-      title,
-      category,
-      timestamp: new Date().toISOString(),
-      details,
-      user_id: user?.id || "local",
-      username: myName
-    };
-    const updated = [newLog, ...activities].slice(0, 30);
-    setActivities(updated);
-
-    if (user) {
-      try {
-        await fetch("/api/activities", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(newLog)
-        });
-      } catch (err) {
-        console.error("Failed to save activity to MongoDB:", err);
-      }
-    } else {
-      localStorage.setItem("cinetrack_activities", JSON.stringify(updated));
-    }
-  };
+  const logActivity = useCallback(async (type: ActivityLog["type"], title: string, category: string, details: string) => {
+    // No-op: Activities removed from DB and UI to save space
+  }, []);
 
 
 
@@ -1776,7 +1741,7 @@ function DashboardInner() {
 
   // 6. Reset all libraries
   const handleResetLibrary = async () => {
-    if (!window.confirm("Are you sure you want to clear your entire library and activity logs?")) {
+    if (!window.confirm("Are you sure you want to clear your entire library?")) {
       return;
     }
 
@@ -1795,7 +1760,7 @@ function DashboardInner() {
       await saveMoviesState([]);
       setActivities([]);
       localStorage.removeItem("cinetrack_activities");
-      showToast("Cleared your entire tracking library and activities.", "warning");
+      showToast("Cleared your entire tracking library.", "warning");
     } catch (err) {
       console.error("Failed to clear database:", err);
       showToast("Error clearing database.", "warning");
@@ -2039,7 +2004,7 @@ function DashboardInner() {
   const totalWatchedRuntime = baseMyWatchedList.reduce((acc, curr) => acc + (curr.runtime || 0), 0);
 
   return (
-    <div className="w-full bg-zinc-950 min-h-screen text-zinc-100 flex flex-col antialiased pb-20 md:pb-0">
+    <div className="w-full max-w-full overflow-x-hidden bg-zinc-950 min-h-screen text-zinc-100 flex flex-col antialiased pb-20 md:pb-0">
       {/* Decorative Glow Bubbles */}
       <div className="fixed -top-40 -left-40 w-96 h-96 bg-indigo-500/5 rounded-full filter blur-[100px] pointer-events-none" />
       <div className="fixed top-1/3 -right-40 w-96 h-96 bg-emerald-500/3 rounded-full filter blur-[100px] pointer-events-none" />
@@ -2062,15 +2027,15 @@ function DashboardInner() {
           </div>
 
           {/* Desktop Nav — icon + label pills */}
-          <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
+          <nav className="hidden md:flex items-center gap-0.5 flex-1 justify-center">
             {[
-              { tab: "dashboard",          icon: <LayoutDashboard className="w-3.5 h-3.5" />, label: "Home",     accent: "indigo", badge: null },
-              { tab: "unwatched",          icon: <Compass        className="w-3.5 h-3.5" />, label: "Unwatched", accent: "amber",  badge: baseMyUnwatchedList.length > 0 ? baseMyUnwatchedList.length : null },
-              { tab: "watching",           icon: <PlayCircle     className="w-3.5 h-3.5" />, label: "Watching",  accent: "indigo", badge: baseMyWatchingList.length > 0 ? baseMyWatchingList.length : null },
-              { tab: "watched",            icon: <Trophy         className="w-3.5 h-3.5" />, label: "Watched",  accent: "emerald", badge: baseMyWatchedList.length > 0 ? baseMyWatchedList.length : null },
-              { tab: "upcoming_watchlist", icon: <Calendar       className="w-3.5 h-3.5" />, label: "Upcoming", accent: "amber",   badge: baseMyUpcomingList.length > 0 ? baseMyUpcomingList.length : null },
-              { tab: "declined",           icon: <ThumbsDown     className="w-3.5 h-3.5" />, label: "Declined", accent: "red",     badge: baseDeclinedList.length > 0 ? baseDeclinedList.length : null },
-            ].map(({ tab, icon, label, accent, badge }) => {
+              { tab: "dashboard",          icon: <LayoutDashboard className="w-3.5 h-3.5" />, label: "Home",     accent: "indigo" },
+              { tab: "unwatched",          icon: <Compass        className="w-3.5 h-3.5" />, label: "Unwatched", accent: "amber"  },
+              { tab: "watching",           icon: <PlayCircle     className="w-3.5 h-3.5" />, label: "Watching",  accent: "indigo" },
+              { tab: "watched",            icon: <Trophy         className="w-3.5 h-3.5" />, label: "Watched",  accent: "emerald" },
+              { tab: "upcoming_watchlist", icon: <Calendar       className="w-3.5 h-3.5" />, label: "Upcoming", accent: "amber"   },
+              { tab: "declined",           icon: <ThumbsDown     className="w-3.5 h-3.5" />, label: "Declined", accent: "red"     },
+            ].map(({ tab, icon, label, accent }) => {
               const isActive = activeTab === tab;
               const accentMap: Record<string, string> = {
                 indigo:  isActive ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/25"  : "hover:text-indigo-300",
@@ -2082,7 +2047,7 @@ function DashboardInner() {
                 <button
                   key={tab}
                   onClick={() => { setActiveTab(tab as any); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                  className={`relative flex items-center gap-0 xl:gap-1 px-1.5 xl:px-2.5 py-1 rounded-xl text-[11px] xl:text-xs font-bold transition-all cursor-pointer border ${
                     isActive
                       ? `${accentMap[accent]}`
                       : `text-zinc-500 border-transparent hover:bg-zinc-900/60 ${accentMap[accent]}`
@@ -2090,12 +2055,7 @@ function DashboardInner() {
                   title={label}
                 >
                   {icon}
-                  <span>{label}</span>
-                  {badge != null && (
-                    <span className={`ml-0.5 text-[8px] font-extrabold px-1.5 py-0.5 rounded-full ${
-                      isActive ? "bg-red-500/20 text-red-400" : "bg-zinc-900 text-zinc-500 border border-zinc-800"
-                    }`}>{badge}</span>
-                  )}
+                  <span className="hidden xl:inline">{label}</span>
                 </button>
               );
             })}
@@ -2104,7 +2064,7 @@ function DashboardInner() {
             {(user?.role === "superadmin" || user?.role === "admin") && (
               <button
                 onClick={() => { setActiveTab("admin"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                className={`flex items-center gap-0 xl:gap-1 px-1.5 xl:px-2.5 py-1 rounded-xl text-[11px] xl:text-xs font-bold transition-all cursor-pointer border ${
                   activeTab === "admin"
                     ? "bg-violet-500/10 text-violet-400 border-violet-500/25"
                     : "text-zinc-500 border-transparent hover:bg-zinc-900/60 hover:text-violet-300"
@@ -2112,7 +2072,7 @@ function DashboardInner() {
                 title="Admin Panel"
               >
                 <Shield className="w-3.5 h-3.5" />
-                <span>Admin</span>
+                <span className="hidden xl:inline">Admin</span>
               </button>
             )}
           </nav>
@@ -3377,18 +3337,18 @@ function DashboardInner() {
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/90 backdrop-blur-lg border-t border-zinc-900 px-4 py-2 flex items-center justify-around shadow-lg">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/90 backdrop-blur-lg border-t border-zinc-900 px-0.5 py-1.5 flex items-center justify-between shadow-lg w-full overflow-hidden">
         <button
           onClick={() => {
             setActiveTab("dashboard");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
+          className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 cursor-pointer transition-all relative py-1 px-0.5 ${
             activeTab === "dashboard" ? "text-indigo-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
           }`}
         >
           <LayoutDashboard className="w-5 h-5" />
-          <span className="text-[9px] font-bold">Home</span>
+          <span className="block w-full text-[7.5px] xs:text-[8.5px] font-bold truncate text-center">Home</span>
         </button>
 
         <button
@@ -3396,14 +3356,14 @@ function DashboardInner() {
             setActiveTab("unwatched");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
+          className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 cursor-pointer transition-all relative py-1 px-0.5 ${
             activeTab === "unwatched" ? "text-amber-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
           }`}
         >
           <Compass className="w-5 h-5" />
-          <span className="text-[9px] font-bold">Unwatched</span>
+          <span className="block w-full text-[7.5px] xs:text-[8.5px] font-bold truncate text-center">Queue</span>
           {baseMyUnwatchedList.length > 0 && (
-            <span className="absolute top-0 right-1 bg-amber-500 text-zinc-950 text-[8px] font-extrabold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center shadow-sm">
+            <span className="absolute top-0.5 left-1/2 translate-x-1.5 bg-amber-500 text-zinc-950 text-[7px] font-extrabold px-1 min-w-[13px] h-[13px] rounded-full flex items-center justify-center shadow-sm">
               {baseMyUnwatchedList.length}
             </span>
           )}
@@ -3414,14 +3374,14 @@ function DashboardInner() {
             setActiveTab("watching");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
+          className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 cursor-pointer transition-all relative py-1 px-0.5 ${
             activeTab === "watching" ? "text-indigo-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
           }`}
         >
           <PlayCircle className="w-5 h-5" />
-          <span className="text-[9px] font-bold">Watching</span>
+          <span className="block w-full text-[7.5px] xs:text-[8.5px] font-bold truncate text-center">Watching</span>
           {baseMyWatchingList.length > 0 && (
-            <span className="absolute top-0 right-1 bg-indigo-500 text-white text-[8px] font-extrabold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center shadow-sm">
+            <span className="absolute top-0.5 left-1/2 translate-x-1.5 bg-indigo-500 text-white text-[7px] font-extrabold px-1 min-w-[13px] h-[13px] rounded-full flex items-center justify-center shadow-sm">
               {baseMyWatchingList.length}
             </span>
           )}
@@ -3432,14 +3392,14 @@ function DashboardInner() {
             setActiveTab("watched");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
+          className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 cursor-pointer transition-all relative py-1 px-0.5 ${
             activeTab === "watched" ? "text-emerald-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
           }`}
         >
           <Trophy className="w-5 h-5" />
-          <span className="text-[9px] font-bold">Watched</span>
+          <span className="block w-full text-[7.5px] xs:text-[8.5px] font-bold truncate text-center">Watched</span>
           {baseMyWatchedList.length > 0 && (
-            <span className="absolute top-0 right-1 bg-emerald-500 text-white text-[8px] font-extrabold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center shadow-sm">
+            <span className="absolute top-0.5 left-1/2 translate-x-1.5 bg-emerald-500 text-white text-[7px] font-extrabold px-1 min-w-[13px] h-[13px] rounded-full flex items-center justify-center shadow-sm">
               {baseMyWatchedList.length}
             </span>
           )}
@@ -3450,14 +3410,14 @@ function DashboardInner() {
             setActiveTab("upcoming_watchlist");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
+          className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 cursor-pointer transition-all relative py-1 px-0.5 ${
             activeTab === "upcoming_watchlist" ? "text-amber-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
           }`}
         >
           <Calendar className="w-5 h-5" />
-          <span className="text-[9px] font-bold">Upcoming</span>
+          <span className="block w-full text-[7.5px] xs:text-[8.5px] font-bold truncate text-center">Upcoming</span>
           {baseMyUpcomingList.length > 0 && (
-            <span className="absolute top-0 right-1 bg-amber-500 text-zinc-950 text-[8px] font-extrabold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center shadow-sm">
+            <span className="absolute top-0.5 left-1/2 translate-x-1.5 bg-amber-500 text-zinc-950 text-[7px] font-extrabold px-1 min-w-[13px] h-[13px] rounded-full flex items-center justify-center shadow-sm">
               {baseMyUpcomingList.length}
             </span>
           )}
@@ -3468,14 +3428,14 @@ function DashboardInner() {
             setActiveTab("declined");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
-          className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
+          className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 cursor-pointer transition-all relative py-1 px-0.5 ${
             activeTab === "declined" ? "text-red-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
           }`}
         >
           <ThumbsDown className="w-5 h-5" />
-          <span className="text-[9px] font-bold">Declined</span>
+          <span className="block w-full text-[7.5px] xs:text-[8.5px] font-bold truncate text-center">Declined</span>
           {baseDeclinedList.length > 0 && (
-            <span className="absolute top-0 right-1 bg-red-500 text-white text-[8px] font-extrabold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center shadow-sm">
+            <span className="absolute top-0.5 left-1/2 translate-x-1.5 bg-red-500 text-white text-[7px] font-extrabold px-1 min-w-[13px] h-[13px] rounded-full flex items-center justify-center shadow-sm">
               {baseDeclinedList.length}
             </span>
           )}
@@ -3487,12 +3447,12 @@ function DashboardInner() {
               setActiveTab("search_results");
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
-            className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
+            className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 cursor-pointer transition-all relative py-1 px-0.5 ${
               activeTab === "search_results" ? "text-indigo-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
             }`}
           >
             <Search className="w-5 h-5 text-indigo-400" />
-            <span className="text-[9px] font-bold">Search</span>
+            <span className="block w-full text-[7.5px] xs:text-[8.5px] font-bold truncate text-center">Search</span>
           </button>
         )}
       </div>
