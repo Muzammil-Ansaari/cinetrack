@@ -15,6 +15,10 @@ interface MovieCardProps {
   onCardClick?: () => void;
   isInMyList?: boolean;
   onAddToMyList?: () => void;
+  /** Override: whether the current user personally watched this title (used when viewing a friend's row) */
+  myWatched?: boolean;
+  /** Override: whether the current user personally declined this title (used when viewing a friend's row) */
+  myDeclined?: boolean;
 }
 
 export default function MovieCard({
@@ -28,6 +32,8 @@ export default function MovieCard({
   onCardClick,
   isInMyList = true,
   onAddToMyList,
+  myWatched,
+  myDeclined,
 }: MovieCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [localReleaseDate, setLocalReleaseDate] = useState<string | null>(movie.release_date || null);
@@ -107,17 +113,24 @@ export default function MovieCard({
   };
 
   // Extract watched and pending friends summaries
+  // If myWatched/myDeclined props are provided (viewing friend's row), use those for the current user's status
   const watchedBy = movie.watched_by ? movie.watched_by.split(", ").filter(Boolean) : [];
   const declinedBy = movie.declined_by ? movie.declined_by.split(", ").filter(Boolean) : [];
+
+  // Resolve the current user's actual status:
+  // - prefer explicit override props (myWatched / myDeclined) when viewing a friend's row
+  // - fall back to the movie row's watched_by / declined_by fields
+  const iAmWatched  = myWatched  !== undefined ? myWatched  : watchedBy.includes(myName);
+  const iAmDeclined = myDeclined !== undefined ? myDeclined : declinedBy.includes(myName);
 
   const renderActionButtons = () => {
     return (
       <div className="grid grid-cols-2 gap-1.5 w-full select-none">
-        {/* User-specific Mark as Watched Toggle */}
-        {watchedBy.includes(myName) ? (
+        {/* User-specific Mark as Watched Toggle — uses iAmWatched which respects cross-row status */}
+        {iAmWatched ? (
           <button
             onClick={() => onToggleFriendWatched(movie.id, myName)}
-            className="h-[28px] rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/35 text-emerald-450 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 duration-200 shadow-sm text-[9px] font-bold"
+            className="h-[28px] rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/35 text-emerald-400 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 duration-200 shadow-sm text-[9px] font-bold"
             title="You watched this — click to unmark"
           >
             <Check className="w-3 h-3 stroke-[2.5]" />
@@ -134,11 +147,11 @@ export default function MovieCard({
           </button>
         )}
 
-        {/* Decline / Not Interested Button */}
-        {declinedBy.includes(myName) ? (
+        {/* Decline / Not Interested Button — uses iAmDeclined which respects cross-row status */}
+        {iAmDeclined ? (
           <button
             onClick={() => onToggleDeclined(movie.id, myName)}
-            className="h-[28px] rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 text-amber-550 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 duration-200 shadow-sm text-[9px] font-bold"
+            className="h-[28px] rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 text-amber-500 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 duration-200 shadow-sm text-[9px] font-bold"
             title="You declined this — click to restore"
           >
             <ThumbsDown className="w-3 h-3 stroke-[2.5]" />

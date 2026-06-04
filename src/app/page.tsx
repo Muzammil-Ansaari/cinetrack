@@ -23,7 +23,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
-  Shield
+  Shield,
+  Settings
 } from "lucide-react";
 import { Movie, TMDBMovie } from "@/types";
 // Supabase deprecated, utilizing native MongoDB operations
@@ -37,6 +38,7 @@ import BulkImportModal from "@/components/BulkImportModal";
 import CustomMovieModal from "@/components/CustomMovieModal";
 import DetailModal from "@/components/DetailModal";
 import AdminPanel from "@/components/AdminPanel";
+import SettingsPanel from "@/components/SettingsPanel";
 
 interface ActivityLog {
   id: string;
@@ -57,12 +59,13 @@ function DashboardInner() {
     friends: authFriends,
     pendingRequests,
     signOut,
+    refreshProfile,
     loading: authLoading,
   } = useAuth();
   const [showFriendsPanel, setShowFriendsPanel] = useState(false);
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "unwatched" | "upcoming_watchlist" | "watched" | "declined" | "search_results" | "admin">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "unwatched" | "upcoming_watchlist" | "watched" | "declined" | "search_results" | "admin" | "settings">("dashboard");
   const [toast, setToast] = useState<{ message: string; type: "success" | "warning" | "info" } | null>(null);
   const [isCustomMovieModalOpen, setIsCustomMovieModalOpen] = useState(false);
   
@@ -168,10 +171,10 @@ function DashboardInner() {
           <ChevronRight className="w-4 h-4" />
         </button>
 
-        {/* Scrollable Container (Grid on mobile, horizontal scroll on desktop) */}
+        {/* Scrollable Container (horizontal scroll on both mobile and desktop) */}
         <div
           id={rowId}
-          className="grid grid-cols-2 md:flex md:items-stretch gap-3 md:gap-4 md:overflow-x-auto pb-4 pt-1 md:scrollbar-none md:scroll-smooth"
+          className="flex items-stretch gap-3 md:gap-4 overflow-x-auto pb-4 pt-1 scrollbar-none scroll-smooth"
         >
           {items.map((item) => {
             const year = item.release_date ? item.release_date.split("-")[0] : "N/A";
@@ -187,7 +190,7 @@ function DashboardInner() {
             return (
               <div 
                 key={item.id} 
-                className="w-full md:w-[180px] md:flex-shrink-0 bg-zinc-900/50 border border-zinc-800/70 hover:border-indigo-500/30 rounded-2xl overflow-hidden flex flex-col justify-between shadow-md hover:shadow-indigo-500/5 transition-all duration-300 group relative"
+                className="w-[140px] xs:w-[150px] md:w-[180px] flex-shrink-0 bg-zinc-900/50 border border-zinc-800/70 hover:border-indigo-500/30 rounded-2xl overflow-hidden flex flex-col justify-between shadow-md hover:shadow-indigo-500/5 transition-all duration-300 group relative"
               >
                 {/* Poster Image / Click Trigger */}
                 <div 
@@ -673,7 +676,7 @@ function DashboardInner() {
 
   // Helper to check if a specific TMDB movie is already tracked
   const isTracked = (tmdbId: string) => {
-    return movies.some((m) => m.tmdb_id === tmdbId);
+    return movies.some((m) => m.tmdb_id === tmdbId && isMovieOwnedByUser(m, myName));
   };
 
 
@@ -696,7 +699,7 @@ function DashboardInner() {
       await ensureFreshSession();
       console.log("CineTrack [Diagnostics]: Session freshness checked.");
 
-      if (movies.some((m) => m.tmdb_id === tmdbMovie.id.toString())) {
+      if (movies.some((m) => m.tmdb_id === tmdbMovie.id.toString() && isMovieOwnedByUser(m, myName))) {
         console.warn("CineTrack [Diagnostics]: Movie is already in local list:", tmdbMovie.title);
         showToast(`"${tmdbMovie.title}" is already in your tracker!`, "info");
         return;
@@ -815,16 +818,28 @@ function DashboardInner() {
       broadcastMovieChange();
       
       // Log Activity
+      const todayStr = new Date().toISOString().split("T")[0];
+      const isMovieUpcoming = releaseDate ? releaseDate > todayStr : false;
       logActivity(
         "add", 
         tmdbMovie.title, 
         category, 
-        watched ? "added it to Watched list" : "added it to Unwatched list"
+        watched 
+          ? "added it to Watched list" 
+          : isMovieUpcoming 
+            ? "added it to Upcoming list" 
+            : "added it to Unwatched list"
       );
 
       console.log("CineTrack [Diagnostics]: Adding movie successful!");
       showToast(
-        `Added "${tmdbMovie.title}" to ${watched ? "Watched Collection" : "Unwatched Queue"}!`,
+        `Added "${tmdbMovie.title}" to ${
+          watched 
+            ? "Watched Collection" 
+            : isMovieUpcoming 
+              ? "Upcoming Watchlist" 
+              : "Unwatched Queue"
+        }!`,
         "success"
       );
     } catch (err: any) {
@@ -858,7 +873,7 @@ function DashboardInner() {
       onProgress(i + 1, finalItems.length, title);
 
       // Skip duplicates already tracked in state
-      if (movies.some((m) => m.tmdb_id === tmdbMovie.id.toString())) {
+      if (movies.some((m) => m.tmdb_id === tmdbMovie.id.toString() && isMovieOwnedByUser(m, myName))) {
         continue;
       }
 
@@ -976,16 +991,19 @@ function DashboardInner() {
     // Only the current user can toggle their own name
     if (friendName !== myName) return;
 
-    const currentWatchedBy = targetMovie.watched_by
-      ? targetMovie.watched_by.split(", ").filter(Boolean)
-      : [];
-
-    const isMarkingWatched = !currentWatchedBy.includes(myName);
-
-    const existingUserRow = movies.find(
+    // Find the user's own row for this tmdb_id (may differ from targetMovie if viewing a friend's row)
+    const myOwnRow = movies.find(
       (m) => m.tmdb_id === targetMovie.tmdb_id && m.user_id === user?.id
     );
-    const resolvedCreatedAt = existingUserRow?.created_at || new Date().toISOString();
+
+    // Determine current watched state from the user's own row (or override props from card)
+    const currentlyWatched = myOwnRow
+      ? (myOwnRow.watched || (myOwnRow.watched_by?.split(", ").filter(Boolean).includes(myName) ?? false))
+      : false;
+
+    const isMarkingWatched = !currentlyWatched;
+
+    const resolvedCreatedAt = myOwnRow?.created_at || new Date().toISOString();
 
     try {
       const newEntry = {
@@ -997,8 +1015,8 @@ function DashboardInner() {
         runtime: targetMovie.runtime,
         synopsis: targetMovie.synopsis,
         watched: isMarkingWatched,
-        rating: null,
-        review: null,
+        rating: myOwnRow?.rating ?? null,
+        review: myOwnRow?.review ?? null,
         seasons: targetMovie.seasons,
         episodes: targetMovie.episodes || null,
         category: targetMovie.category,
@@ -1023,19 +1041,24 @@ function DashboardInner() {
       await refetchMovies();
       broadcastMovieChange();
 
+      const todayStr = new Date().toISOString().split("T")[0];
+      const isUpcoming = targetMovie.release_date ? targetMovie.release_date > todayStr : false;
+
       logActivity(
         isMarkingWatched ? "watch" : "unwatch",
         targetMovie.title,
         targetMovie.category,
         isMarkingWatched
           ? "marked it as watched"
-          : "moved it back to Unwatched list"
+          : isUpcoming
+            ? "moved it back to Upcoming list"
+            : "moved it back to Unwatched list"
       );
 
       showToast(
         isMarkingWatched
           ? `Marked "${targetMovie.title}" as watched!`
-          : `Marked "${targetMovie.title}" as unwatched.`,
+          : `Marked "${targetMovie.title}" as unwatched (${isUpcoming ? "Upcoming Watchlist" : "Unwatched Queue"}).`,
         "success"
       );
     } catch (err) {
@@ -1051,16 +1074,19 @@ function DashboardInner() {
 
     if (friendName !== myName) return;
 
-    const currentDeclinedBy = targetMovie.declined_by
-      ? targetMovie.declined_by.split(", ").filter(Boolean)
-      : [];
-
-    const isMarkingDeclined = !currentDeclinedBy.includes(myName);
-
-    const existingUserRow = movies.find(
+    // Find the user's own row for this tmdb_id (may differ from targetMovie if viewing a friend's row)
+    const myOwnRow = movies.find(
       (m) => m.tmdb_id === targetMovie.tmdb_id && m.user_id === user?.id
     );
-    const resolvedCreatedAt = existingUserRow?.created_at || new Date().toISOString();
+
+    // Determine current declined state from the user's own row
+    const currentlyDeclined = myOwnRow
+      ? (myOwnRow.declined || (myOwnRow.declined_by?.split(", ").filter(Boolean).includes(myName) ?? false))
+      : false;
+
+    const isMarkingDeclined = !currentlyDeclined;
+
+    const resolvedCreatedAt = myOwnRow?.created_at || new Date().toISOString();
 
     try {
       const newEntry = {
@@ -1071,10 +1097,10 @@ function DashboardInner() {
         release_year: targetMovie.release_year,
         runtime: targetMovie.runtime,
         synopsis: targetMovie.synopsis,
-        watched: targetMovie.watched,
+        watched: myOwnRow?.watched ?? targetMovie.watched,
         declined: isMarkingDeclined,
-        rating: targetMovie.rating,
-        review: targetMovie.review,
+        rating: myOwnRow?.rating ?? targetMovie.rating,
+        review: myOwnRow?.review ?? targetMovie.review,
         seasons: targetMovie.seasons,
         episodes: targetMovie.episodes || null,
         category: targetMovie.category,
@@ -1098,19 +1124,33 @@ function DashboardInner() {
       await refetchMovies();
       broadcastMovieChange();
 
+      const isWatched = !!myOwnRow?.watched;
+      const todayStr = new Date().toISOString().split("T")[0];
+      const isUpcoming = targetMovie.release_date ? targetMovie.release_date > todayStr : false;
+
+      let destinationName = "Unwatched Queue";
+      let destinationActivity = "restored it back to Unwatched list";
+      if (isWatched) {
+        destinationName = "Watched Collection";
+        destinationActivity = "restored it back to Watched list";
+      } else if (isUpcoming) {
+        destinationName = "Upcoming Watchlist";
+        destinationActivity = "restored it back to Upcoming list";
+      }
+
       logActivity(
         isMarkingDeclined ? "decline" : "undecline",
         targetMovie.title,
         targetMovie.category,
         isMarkingDeclined
           ? "marked it as Not Interested"
-          : "restored it back to Unwatched list"
+          : destinationActivity
       );
 
       showToast(
         isMarkingDeclined
           ? `Moved "${targetMovie.title}" to Declined list!`
-          : `Restored "${targetMovie.title}" to Unwatched.`,
+          : `Restored "${targetMovie.title}" to ${destinationName}.`,
         "success"
       );
     } catch (err) {
@@ -1344,8 +1384,19 @@ function DashboardInner() {
       if (!res.ok) throw new Error("Failed to add to your list");
       await refetchMovies();
       broadcastMovieChange();
-      logActivity("add", movie.title, movie.category, "added it to their Unwatched list");
-      showToast(`"${movie.title}" added to your list!`, "success");
+      const todayStr = new Date().toISOString().split("T")[0];
+      const isMovieUpcoming = movie.release_date ? movie.release_date > todayStr : false;
+
+      logActivity(
+        "add", 
+        movie.title, 
+        movie.category, 
+        isMovieUpcoming ? "added it to their Upcoming list" : "added it to their Unwatched list"
+      );
+      showToast(
+        `"${movie.title}" added to your ${isMovieUpcoming ? "Upcoming Watchlist" : "Unwatched Queue"}!`, 
+        "success"
+      );
     } catch (err: any) {
       showToast("Error adding to your list.", "warning");
     }
@@ -1586,6 +1637,22 @@ function DashboardInner() {
           {/* Right side: Friends + Avatar */}
           <div className="flex items-center gap-2 flex-shrink-0">
 
+            {/* Admin button for Mobile — only if privileged */}
+            {(user?.role === "superadmin" || user?.role === "admin") && (
+              <button
+                onClick={() => { setActiveTab("admin"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer md:hidden ${
+                  activeTab === "admin"
+                    ? "bg-violet-500/10 text-violet-400 border-violet-500/25"
+                    : "bg-zinc-900/60 border border-zinc-800/60 text-zinc-400 hover:text-violet-300"
+                }`}
+                title="Admin Panel"
+              >
+                <Shield className="w-3.5 h-3.5 text-violet-400" />
+                <span className="text-xs font-bold hidden sm:inline">Admin</span>
+              </button>
+            )}
+
             {/* Friends button */}
             <button
               onClick={() => setShowFriendsPanel(true)}
@@ -1604,26 +1671,20 @@ function DashboardInner() {
               )}
             </button>
 
-            {/* Avatar + sign-out */}
+            {/* Avatar + sign-out — click avatar to open settings */}
             {user && (
-              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-zinc-900/40 border border-zinc-800/40">
+              <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl bg-zinc-900/40 border border-zinc-800/40">
                 <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white flex-shrink-0 shadow-inner"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white flex-shrink-0 shadow-inner cursor-pointer hover:scale-105 transition-transform active:scale-95"
                   style={{ backgroundColor: user.avatar_color || "#6366f1" }}
+                  onClick={() => { setActiveTab("settings"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  title={`${user.display_name} — click for settings`}
                 >
                   {(user.display_name || user.username || "Me").slice(0, 2).toUpperCase()}
                 </div>
-                <div className="flex flex-col text-left leading-tight">
-                  <span className="text-[10px] font-extrabold text-zinc-100 whitespace-nowrap">
-                    {user.display_name}
-                  </span>
-                  <span className="text-[8px] font-bold text-indigo-400 whitespace-nowrap">
-                    @{user.username}
-                  </span>
-                </div>
                 <button
                   onClick={signOut}
-                  className="p-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer ml-0.5"
+                  className="p-1 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
                   title="Sign out"
                 >
                   <LogOut className="w-3 h-3" />
@@ -1928,23 +1989,33 @@ function DashboardInner() {
                 </p>
               </div>
             ) : (
-              /* High-end Multi-column Grid Layout (up to 6 columns on xl) */
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-                {unwatchedList.map((movie) => (
-                  <MovieCard
-                    key={movie.id}
-                    movie={movie}
-                    friends={friends}
-                    myName={myName}
-                    onToggleFriendWatched={handleToggleFriendWatched}
-                    onToggleDeclined={handleToggleDeclined}
-                    onUpdateFriendRating={handleUpdateFriendRating}
-                    onUpdateFriendReview={handleUpdateFriendReview}
-                    onCardClick={() => openDetailModal(movie.tmdb_id, movie.category)}
-                    isInMyList={movies.some((m) => m.tmdb_id === movie.tmdb_id && isMovieOwnedByUser(m, myName))}
-                    onAddToMyList={unwatchedViewMode !== "my-list" ? () => handleAddToMyList(movie) : undefined}
-                  />
-                ))}
+                {unwatchedList.map((movie) => {
+                  // When viewing a friend's list, look up the current user's own row for this tmdb_id
+                  // so the Watched/Decline buttons correctly reflect personal status
+                  const myOwnRow = unwatchedViewMode !== "my-list"
+                    ? movies.find((m) => m.tmdb_id === movie.tmdb_id && m.user_id === user?.id)
+                    : undefined;
+                  const myWatched  = myOwnRow ? !!myOwnRow.watched  : undefined;
+                  const myDeclined = myOwnRow ? !!myOwnRow.declined : undefined;
+                  return (
+                    <MovieCard
+                      key={movie.id}
+                      movie={movie}
+                      friends={friends}
+                      myName={myName}
+                      onToggleFriendWatched={handleToggleFriendWatched}
+                      onToggleDeclined={handleToggleDeclined}
+                      onUpdateFriendRating={handleUpdateFriendRating}
+                      onUpdateFriendReview={handleUpdateFriendReview}
+                      onCardClick={() => openDetailModal(movie.tmdb_id, movie.category)}
+                      isInMyList={movies.some((m) => m.tmdb_id === movie.tmdb_id && isMovieOwnedByUser(m, myName))}
+                      onAddToMyList={unwatchedViewMode !== "my-list" ? () => handleAddToMyList(movie) : undefined}
+                      myWatched={myWatched}
+                      myDeclined={myDeclined}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
@@ -2130,23 +2201,32 @@ function DashboardInner() {
                 </p>
               </div>
             ) : (
-              /* High-end Multi-column Grid Layout (up to 6 columns on xl) */
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-                {upcomingList.map((movie) => (
-                  <MovieCard
-                    key={movie.id}
-                    movie={movie}
-                    friends={friends}
-                    myName={myName}
-                    onToggleFriendWatched={handleToggleFriendWatched}
-                    onToggleDeclined={handleToggleDeclined}
-                    onUpdateFriendRating={handleUpdateFriendRating}
-                    onUpdateFriendReview={handleUpdateFriendReview}
-                    onCardClick={() => openDetailModal(movie.tmdb_id, movie.category)}
-                    isInMyList={movies.some((m) => m.tmdb_id === movie.tmdb_id && isMovieOwnedByUser(m, myName))}
-                    onAddToMyList={upcomingViewMode !== "my-list" ? () => handleAddToMyList(movie) : undefined}
-                  />
-                ))}
+                {upcomingList.map((movie) => {
+                  // When viewing a friend's upcoming list, look up the current user's own row
+                  const myOwnRow = upcomingViewMode !== "my-list"
+                    ? movies.find((m) => m.tmdb_id === movie.tmdb_id && m.user_id === user?.id)
+                    : undefined;
+                  const myWatched  = myOwnRow ? !!myOwnRow.watched  : undefined;
+                  const myDeclined = myOwnRow ? !!myOwnRow.declined : undefined;
+                  return (
+                    <MovieCard
+                      key={movie.id}
+                      movie={movie}
+                      friends={friends}
+                      myName={myName}
+                      onToggleFriendWatched={handleToggleFriendWatched}
+                      onToggleDeclined={handleToggleDeclined}
+                      onUpdateFriendRating={handleUpdateFriendRating}
+                      onUpdateFriendReview={handleUpdateFriendReview}
+                      onCardClick={() => openDetailModal(movie.tmdb_id, movie.category)}
+                      isInMyList={movies.some((m) => m.tmdb_id === movie.tmdb_id && isMovieOwnedByUser(m, myName))}
+                      onAddToMyList={upcomingViewMode !== "my-list" ? () => handleAddToMyList(movie) : undefined}
+                      myWatched={myWatched}
+                      myDeclined={myDeclined}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
@@ -2335,21 +2415,30 @@ function DashboardInner() {
             ) : (
               /* High-end Multi-column Grid Layout (up to 6 columns on xl) */
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-                {watchedList.map((movie) => (
-                  <MovieCard
-                    key={movie.id}
-                    movie={movie}
-                    friends={friends}
-                    myName={myName}
-                    onToggleFriendWatched={handleToggleFriendWatched}
-                    onToggleDeclined={handleToggleDeclined}
-                    onUpdateFriendRating={handleUpdateFriendRating}
-                    onUpdateFriendReview={handleUpdateFriendReview}
-                    onCardClick={() => openDetailModal(movie.tmdb_id, movie.category)}
-                    isInMyList={movies.some((m) => m.tmdb_id === movie.tmdb_id && isMovieOwnedByUser(m, myName))}
-                    onAddToMyList={watchedViewMode !== "my-list" ? () => handleAddToMyList(movie) : undefined}
-                  />
-                ))}
+                {watchedList.map((movie) => {
+                  const myOwnRow = watchedViewMode !== "my-list"
+                    ? movies.find((m) => m.tmdb_id === movie.tmdb_id && m.user_id === user?.id)
+                    : undefined;
+                  const myWatched  = myOwnRow ? !!myOwnRow.watched  : undefined;
+                  const myDeclined = myOwnRow ? !!myOwnRow.declined : undefined;
+                  return (
+                    <MovieCard
+                      key={movie.id}
+                      movie={movie}
+                      friends={friends}
+                      myName={myName}
+                      onToggleFriendWatched={handleToggleFriendWatched}
+                      onToggleDeclined={handleToggleDeclined}
+                      onUpdateFriendRating={handleUpdateFriendRating}
+                      onUpdateFriendReview={handleUpdateFriendReview}
+                      onCardClick={() => openDetailModal(movie.tmdb_id, movie.category)}
+                      isInMyList={movies.some((m) => m.tmdb_id === movie.tmdb_id && isMovieOwnedByUser(m, myName))}
+                      onAddToMyList={watchedViewMode !== "my-list" ? () => handleAddToMyList(movie) : undefined}
+                      myWatched={myWatched}
+                      myDeclined={myDeclined}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
@@ -2655,6 +2744,15 @@ function DashboardInner() {
           <AdminPanel />
         )}
 
+        {/* VIEW 6: ACCOUNT SETTINGS */}
+        {activeTab === "settings" && user && (
+          <SettingsPanel
+            user={user}
+            refreshProfile={refreshProfile}
+            showToast={showToast}
+          />
+        )}
+
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
@@ -2759,34 +2857,17 @@ function DashboardInner() {
           </button>
         )}
 
-        {(user?.role === "superadmin" || user?.role === "admin") && (
-          <button
-            onClick={() => {
-              setActiveTab("admin");
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
-              activeTab === "admin" ? "text-violet-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
-            }`}
-          >
-            <Shield className="w-5 h-5 text-violet-400" />
-            <span className="text-[9px] font-bold">Admin</span>
-          </button>
-        )}
-
         <button
-          onClick={() => setShowFriendsPanel(true)}
+          onClick={() => {
+            setActiveTab("settings");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
           className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
-            showFriendsPanel ? "text-indigo-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
+            activeTab === "settings" ? "text-indigo-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
           }`}
         >
-          <Users className="w-5 h-5" />
-          <span className="text-[9px] font-bold">Friends</span>
-          {pendingRequests.length > 0 && (
-            <span className="absolute top-0 right-1 bg-indigo-500 text-white text-[8px] font-extrabold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center shadow-sm animate-pulse">
-              {pendingRequests.length}
-            </span>
-          )}
+          <Settings className="w-5 h-5" />
+          <span className="text-[9px] font-bold">Account</span>
         </button>
       </div>
 

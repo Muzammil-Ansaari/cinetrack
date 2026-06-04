@@ -142,10 +142,10 @@ export default function DetailModal({ isOpen, onClose, tmdbId, category }: Detai
         : "is upcoming / in production";
 
       return (
-        <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-2.5 text-xs text-emerald-450 select-none animate-pulse">
+        <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-2.5 text-xs text-emerald-400 select-none animate-pulse">
           <span className="flex h-2 w-2 relative">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-550"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
           <div>
             <span className="font-extrabold uppercase tracking-wider text-[10px] mr-1 bg-emerald-500/25 px-1.5 py-0.5 rounded text-white">Renewed</span>
