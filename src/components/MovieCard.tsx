@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Film, Check, ThumbsDown, Plus, PlayCircle } from "lucide-react";
+import { Film, Check, ThumbsDown, Plus, PlayCircle, X } from "lucide-react";
 import { Movie } from "@/types";
 
 interface MovieCardProps {
@@ -354,21 +354,20 @@ export default function MovieCard({
                     e.stopPropagation();
                     onConfirmNewSeason?.(movie.id, movie.new_season_number || 1);
                   }}
-                  className="h-[26px] rounded-lg bg-amber-500 text-zinc-950 hover:bg-amber-400 flex items-center justify-center gap-0.5 cursor-pointer transition-all active:scale-95 duration-200 text-[8.5px] font-black uppercase tracking-wider"
+                  className="h-[26px] rounded-lg bg-amber-500 text-zinc-950 hover:bg-amber-400 flex items-center justify-center cursor-pointer transition-all active:scale-95 duration-200"
                   title="Mark this season as watched"
                 >
-                  <Check className="w-2.5 h-2.5 stroke-[3]" />
-                  <span>Watched</span>
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onDismissNewSeason?.(movie.id, movie.new_season_number || 1);
                   }}
-                  className="h-[26px] rounded-lg bg-zinc-950 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center gap-0.5 cursor-pointer transition-all active:scale-95 duration-200 text-[8.5px] font-black uppercase tracking-wider"
-                  title="Dismiss alert and return to Watched list"
+                  className="h-[26px] rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-200 flex items-center justify-center cursor-pointer transition-all active:scale-95 duration-200"
+                  title="Dismiss alert"
                 >
-                  <span>Dismiss</span>
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -384,21 +383,20 @@ export default function MovieCard({
                     e.stopPropagation();
                     onToggleFriendWatched(movie.id, myName);
                   }}
-                  className="h-[26px] rounded-lg bg-indigo-500 text-white hover:bg-indigo-400 flex items-center justify-center gap-0.5 cursor-pointer transition-all active:scale-95 duration-200 text-[8.5px] font-black uppercase tracking-wider"
+                  className="h-[26px] rounded-lg bg-indigo-500 text-white hover:bg-indigo-400 flex items-center justify-center cursor-pointer transition-all active:scale-95 duration-200"
                   title="Mark as watched"
                 >
-                  <Check className="w-2.5 h-2.5 stroke-[3]" />
-                  <span>Watched</span>
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onDismissNewlyReleased?.(movie.id);
                   }}
-                  className="h-[26px] rounded-lg bg-zinc-950 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center gap-0.5 cursor-pointer transition-all active:scale-95 duration-200 text-[8.5px] font-black uppercase tracking-wider"
-                  title="Stop watching and return to queue"
+                  className="h-[26px] rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-200 flex items-center justify-center cursor-pointer transition-all active:scale-95 duration-200"
+                  title="Back to queue"
                 >
-                  <span>Back</span>
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>

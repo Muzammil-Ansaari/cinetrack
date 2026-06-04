@@ -433,8 +433,19 @@ function DashboardInner() {
     }
   }, [getUserIdByName]);
 
+
   const isMovieWatchingByUser = useCallback((m: Movie, name: string) => {
     const targetUserId = getUserIdByName(name);
+
+    // ── Owner shortcut: use the direct boolean flag as source of truth ──
+    // If this document belongs to the queried user, trust m.watching directly.
+    // This prevents stale watching_by values (injected by normalization from old
+    // buggy DB records) from causing false positives in the Watching tab.
+    if (targetUserId && m.user_id && m.user_id === targetUserId) {
+      return !!m.watching;
+    }
+
+    // ── Collaborative fallback: check comma-separated fields for friends ──
     if (targetUserId && m.watching_by_ids) {
       const watchingIds = m.watching_by_ids.split(", ").filter(Boolean);
       if (watchingIds.includes(targetUserId)) return true;
@@ -445,6 +456,7 @@ function DashboardInner() {
     }
     return false;
   }, [getUserIdByName]);
+
 
   const isMovieDeclinedByUser = useCallback((m: Movie, name: string) => {
     const targetUserId = getUserIdByName(name);
@@ -511,13 +523,33 @@ function DashboardInner() {
       // The view-mode filters (isMovieOwnedByUser etc.) handle display correctly.
       const normalizedMovies: Movie[] = (results as Movie[]).map((row: Movie) => {
         const ownerName = getUserNameById(row.user_id);
-        // Populate watched_by / declined_by so filter helpers can work on single rows
-        const watchedBy   = row.watched  ? ownerName : (row.watched_by  || "");
-        const declinedBy  = row.declined ? ownerName : (row.declined_by || "");
-        const watchingBy  = row.watching ? ownerName : (row.watching_by || "");
-        const watchedByIds   = row.watched  ? (row.user_id || "") : (row.watched_by_ids  || "");
-        const declinedByIds  = row.declined ? (row.user_id || "") : (row.declined_by_ids || "");
-        const watchingByIds  = row.watching ? (row.user_id || "") : (row.watching_by_ids || "");
+
+        let watchedBy = row.watched ? ownerName : (row.watched_by || "");
+        let watchedByIds = row.watched ? (row.user_id || "") : (row.watched_by_ids || "");
+        if (!row.watched) {
+          watchedBy = watchedBy.split(", ").map(x => x.trim()).filter(x => x && x !== ownerName).join(", ");
+          if (row.user_id) {
+            watchedByIds = watchedByIds.split(", ").map(x => x.trim()).filter(x => x && x !== row.user_id).join(", ");
+          }
+        }
+
+        let declinedBy = row.declined ? ownerName : (row.declined_by || "");
+        let declinedByIds = row.declined ? (row.user_id || "") : (row.declined_by_ids || "");
+        if (!row.declined) {
+          declinedBy = declinedBy.split(", ").map(x => x.trim()).filter(x => x && x !== ownerName).join(", ");
+          if (row.user_id) {
+            declinedByIds = declinedByIds.split(", ").map(x => x.trim()).filter(x => x && x !== row.user_id).join(", ");
+          }
+        }
+
+        let watchingBy = row.watching ? ownerName : (row.watching_by || "");
+        let watchingByIds = row.watching ? (row.user_id || "") : (row.watching_by_ids || "");
+        if (!row.watching) {
+          watchingBy = watchingBy.split(", ").map(x => x.trim()).filter(x => x && x !== ownerName).join(", ");
+          if (row.user_id) {
+            watchingByIds = watchingByIds.split(", ").map(x => x.trim()).filter(x => x && x !== row.user_id).join(", ");
+          }
+        }
 
         return {
           ...row,
@@ -574,7 +606,25 @@ function DashboardInner() {
 
       try {
         if (user) {
+          // 🧹 Run a quick cleanup to reset any stale watching:true records left by old
+          // buggy autoPromoteUpcoming code, THEN fetch fresh data.
+          fetch("/api/movies?cleanup=true")
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+              if (data?.cleaned > 0) {
+                console.log(`CineTrack [Cleanup]: Reset ${data.cleaned} stale watching records.`);
+              }
+              // Always refetch after cleanup so UI reflects the corrected DB state
+              refetchRef.current();
+            })
+            .catch(() => {
+              // Cleanup failed silently — still load data
+              refetchRef.current();
+            });
+
+          // Also do initial fetch immediately without waiting for cleanup
           await refetchRef.current();
+
           // Silently trigger background migration to fix TV show runtimes and episode counts
           fetch("/api/movies?migrate=true")
             .then(res => {
@@ -670,7 +720,7 @@ function DashboardInner() {
       if (!m.last_checked_at) return true;
       const diffMs = today.getTime() - new Date(m.last_checked_at).getTime();
       const diffDays = diffMs / (1000 * 60 * 60 * 24);
-      return diffDays >= 7;
+      return diffDays >= 2;
     });
 
     if (toCheck.length === 0) return;
@@ -693,12 +743,12 @@ function DashboardInner() {
             if (number_of_seasons > currentCount) {
               console.log(`CineTrack: New season detected for show "${show.title}": ${number_of_seasons} seasons (was ${currentCount})`);
               
-              // Move to Watching and clear Watched
+              // Move to Unwatched (not Watching) with the new season badge
               await fetch(`/api/movies?id=${show.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  watching: true,
+                  watching: false,
                   watched: false,
                   has_new_season: true,
                   new_season_number: number_of_seasons,
@@ -740,48 +790,52 @@ function DashboardInner() {
   }, [user, movies, logActivity]);
 
   // Background loop to promote upcoming titles whose release date has arrived/passed
+  // NOTE: The date-driven list filters (release_date > today) automatically move movies
+  // from Upcoming → Unwatched. This function only marks is_newly_released as a badge.
   const autoPromoteUpcoming = useCallback(async () => {
     if (!user) return;
 
     const todayStr = new Date().toISOString().split("T")[0];
 
-    const toPromote = movies.filter((m) => {
+    // Find titles that:
+    // 1. Were added BEFORE their release date (genuinely upcoming, not manually added to unwatched)
+    // 2. Released within the last 7 days (fresh release window)
+    // 3. Not yet marked as newly_released (avoid re-stamping)
+    const toMark = movies.filter((m) => {
       if (m.user_id !== user?.id) return false;
       if (m.watched || m.watching || m.declined) return false;
       if (!m.release_date) return false;
-      return m.release_date <= todayStr;
+      if (m.release_date > todayStr) return false;
+      // Skip if already stamped
+      if (m.is_newly_released) return false;
+      // Only mark if user added it before release (genuinely upcoming)
+      if (m.created_at && m.created_at.slice(0, 10) >= m.release_date) return false;
+      // Only within 7-day release window
+      const daysSince = (Date.now() - new Date(m.release_date).getTime()) / 86400000;
+      return daysSince <= 7;
     });
 
-    if (toPromote.length === 0) return;
+    if (toMark.length === 0) return;
 
-    console.log(`CineTrack [Background Release Check]: Promoting ${toPromote.length} title(s) to Watching queue.`);
+    console.log(`CineTrack [Release Check]: Marking ${toMark.length} title(s) as newly released in Unwatched.`);
 
     await Promise.all(
-      toPromote.map(async (movie) => {
+      toMark.map(async (movie) => {
         try {
+          // Only set the badge — do NOT set watching:true.
+          // The date filter already moves it from Upcoming → Unwatched automatically.
           await fetch(`/api/movies?id=${movie.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              watching: true,
-              is_newly_released: true,
-            })
+            body: JSON.stringify({ is_newly_released: true })
           });
-
-          // Log activity
-          logActivity(
-            "start_watching",
-            movie.title,
-            movie.category,
-            "system auto-moved because its release date has arrived!"
-          );
+          logActivity("add", movie.title, movie.category, "release date arrived — now in Unwatched");
         } catch (e) {
-          console.warn(`CineTrack [Background Release Check] Error promoting "${movie.title}":`, e);
+          console.warn(`CineTrack [Release Check] Error marking "${movie.title}":`, e);
         }
       })
     );
 
-    // Refresh movies to display the updated state
     refetchRef.current();
   }, [user, movies, logActivity]);
 
@@ -915,6 +969,8 @@ function DashboardInner() {
         runtime,
         synopsis: tmdbMovie.overview || null,
         watched,
+        watching,
+        declined: false,
         rating: null,
         review: null,
         seasons,
@@ -923,15 +979,17 @@ function DashboardInner() {
         global_rating,
         genres,
         watched_by: watched ? myName : "",
+        watched_by_ids: watched ? (user?.id || "") : "",
+        watching_by: watching ? myName : "",
+        watching_by_ids: watching ? (user?.id || "") : "",
+        declined_by: "",
+        declined_by_ids: "",
         ratings_json: "{}",
         owners: myName,
         reviews_json: myName,
         user_id: user?.id || null,
         created_at: new Date().toISOString(),
         watched_at: watched ? new Date().toISOString() : null,
-        watching: watching || undefined,
-        watching_by: watching ? myName : undefined,
-        watching_by_ids: watching ? (user?.id || undefined) : undefined,
       };
       console.log("CineTrack [Diagnostics]: New entry object prepared:", newEntry);
 
@@ -1176,7 +1234,12 @@ function DashboardInner() {
         global_rating: targetMovie.global_rating,
         genres: targetMovie.genres,
         user_id: user?.id,
-        watched_by: "",
+        watched_by: isMarkingWatched ? myName : "",
+        watched_by_ids: isMarkingWatched ? (user?.id || "") : "",
+        watching_by: "",
+        watching_by_ids: "",
+        declined_by: "",
+        declined_by_ids: "",
         ratings_json: "{}",
         reviews_json: "{}",
         created_at: resolvedCreatedAt,
@@ -1261,6 +1324,11 @@ function DashboardInner() {
         genres: targetMovie.genres,
         user_id: user?.id,
         watched_by: "",
+        watched_by_ids: "",
+        watching_by: isStartingWatching ? myName : "",
+        watching_by_ids: isStartingWatching ? (user?.id || "") : "",
+        declined_by: "",
+        declined_by_ids: "",
         ratings_json: "{}",
         reviews_json: "{}",
         created_at: resolvedCreatedAt,
@@ -1333,7 +1401,12 @@ function DashboardInner() {
         global_rating: targetMovie.global_rating,
         genres: targetMovie.genres,
         user_id: user?.id,
-        watched_by: "",
+        watched_by: myName,
+        watched_by_ids: user?.id || "",
+        watching_by: "",
+        watching_by_ids: "",
+        declined_by: "",
+        declined_by_ids: "",
         ratings_json: "{}",
         reviews_json: "{}",
         created_at: resolvedCreatedAt,
@@ -1401,7 +1474,12 @@ function DashboardInner() {
         global_rating: targetMovie.global_rating,
         genres: targetMovie.genres,
         user_id: user?.id,
-        watched_by: "",
+        watched_by: myName,
+        watched_by_ids: user?.id || "",
+        watching_by: "",
+        watching_by_ids: "",
+        declined_by: "",
+        declined_by_ids: "",
         ratings_json: "{}",
         reviews_json: "{}",
         created_at: resolvedCreatedAt,
@@ -1463,6 +1541,11 @@ function DashboardInner() {
         genres: targetMovie.genres,
         user_id: user?.id,
         watched_by: "",
+        watched_by_ids: "",
+        watching_by: "",
+        watching_by_ids: "",
+        declined_by: "",
+        declined_by_ids: "",
         ratings_json: "{}",
         reviews_json: "{}",
         created_at: resolvedCreatedAt,
@@ -1534,7 +1617,12 @@ function DashboardInner() {
         global_rating: targetMovie.global_rating,
         genres: targetMovie.genres,
         user_id: user?.id,
-        watched_by: "",
+        watched_by: (myOwnRow?.watched ?? targetMovie.watched) ? myName : "",
+        watched_by_ids: (myOwnRow?.watched ?? targetMovie.watched) ? (user?.id || "") : "",
+        watching_by: "",
+        watching_by_ids: "",
+        declined_by: isMarkingDeclined ? myName : "",
+        declined_by_ids: isMarkingDeclined ? (user?.id || "") : "",
         ratings_json: "{}",
         reviews_json: "{}",
         created_at: resolvedCreatedAt,
@@ -1786,6 +1874,7 @@ function DashboardInner() {
         runtime: movie.runtime,
         synopsis: movie.synopsis,
         watched: false,
+        watching: false,
         declined: false,
         rating: null,
         review: null,
@@ -1795,7 +1884,11 @@ function DashboardInner() {
         global_rating: movie.global_rating,
         genres: movie.genres,
         watched_by: "",
+        watched_by_ids: "",
+        watching_by: "",
+        watching_by_ids: "",
         declined_by: "",
+        declined_by_ids: "",
         ratings_json: "{}",
         reviews_json: myName,
         owners: myName,

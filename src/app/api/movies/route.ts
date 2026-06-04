@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import clientPromise from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
 
 // Helper to get the MongoDB database and collection
 async function getCollection() {
@@ -13,6 +14,39 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const migrate = searchParams.get("migrate");
+    const cleanup = searchParams.get("cleanup");
+
+    // ─── CLEANUP: Reset stale watching:true records ───────────────────────────
+    // This fixes records that were incorrectly auto-promoted to watching by a
+    // previous buggy autoPromoteUpcoming() function. Safe to run on every page load.
+    if (cleanup === "true") {
+      const collection = await getCollection();
+
+      // Case 1: watching=true but also watched=true  → impossible valid state, reset
+      const r1 = await collection.updateMany(
+        { watching: true, watched: true },
+        { $set: { watching: false, watching_by: "", watching_by_ids: "" } }
+      );
+
+      // Case 2: watching=true but watching_by is missing/empty → stale auto-promoted record
+      const r2 = await collection.updateMany(
+        {
+          watching: true,
+          $or: [
+            { watching_by: { $exists: false } },
+            { watching_by: null },
+            { watching_by: "" }
+          ]
+        },
+        { $set: { watching: false, watching_by: "", watching_by_ids: "" } }
+      );
+
+      console.log(`[CLEANUP] Reset ${r1.modifiedCount + r2.modifiedCount} stale watching records.`);
+      return NextResponse.json({
+        success: true,
+        cleaned: r1.modifiedCount + r2.modifiedCount
+      });
+    }
 
     if (migrate === "true") {
       const collection = await getCollection();
@@ -152,7 +186,18 @@ export async function PUT(request: NextRequest) {
 
     let filter: any = {};
     if (id) {
-      filter = { id: id };
+      let objectIdObj: ObjectId | null = null;
+      try {
+        if (ObjectId.isValid(id)) {
+          objectIdObj = new ObjectId(id);
+        }
+      } catch (e) {}
+
+      if (objectIdObj) {
+        filter = { $or: [{ id: id }, { _id: objectIdObj }] };
+      } else {
+        filter = { id: id };
+      }
     } else if (tmdbId && userId) {
       filter = { tmdb_id: tmdbId, user_id: userId };
     } else {
@@ -188,7 +233,18 @@ export async function DELETE(request: NextRequest) {
 
     let filter: any = {};
     if (id) {
-      filter = { id: id };
+      let objectIdObj: ObjectId | null = null;
+      try {
+        if (ObjectId.isValid(id)) {
+          objectIdObj = new ObjectId(id);
+        }
+      } catch (e) {}
+
+      if (objectIdObj) {
+        filter = { $or: [{ id: id }, { _id: objectIdObj }] };
+      } else {
+        filter = { id: id };
+      }
     } else if (tmdbId && userId) {
       filter = { tmdb_id: tmdbId, user_id: userId };
     } else if (userId) {
