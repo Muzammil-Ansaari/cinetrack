@@ -9,6 +9,7 @@ export interface Movie {
   synopsis: string | null;
   watched: boolean;
   declined?: boolean;
+  watching?: boolean;
   rating: number | null; // 1-5 stars (personal rating)
   review: string | null; // Personal notes
   seasons: number | null; // Number of seasons (for TV Shows / Anime Series)
@@ -24,10 +25,18 @@ export interface Movie {
   owner_ids?: string; // Comma-separated user IDs who own this
   watched_by_ids?: string; // Comma-separated user IDs who watched this
   declined_by_ids?: string; // Comma-separated user IDs who declined this
+  watching_by?: string; // Comma-separated usernames who are watching this
+  watching_by_ids?: string; // Comma-separated user IDs who are watching this
+  last_season_count?: number;
+  has_new_season?: boolean;
+  new_season_number?: number | null;
+  last_checked_at?: string | null;
+  is_newly_released?: boolean;
   user_id?: string | null;
   created_at?: string;
   release_date?: string | null;
   watched_at?: string | null;
+  next_episode_air_date?: string | null;
 }
 
 export interface TMDBMovie {

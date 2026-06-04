@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Search, Loader2, X, Plus, Check, ArrowRight } from "lucide-react";
+import { Search, Loader2, X, Check, ArrowRight, BookmarkPlus, PlayCircle } from "lucide-react";
 import { TMDBMovie } from "@/types";
 
 interface SearchBarProps {
-  onAddMovie: (tmdbMovie: TMDBMovie, watched: boolean) => Promise<void>;
+  onAddMovie: (tmdbMovie: TMDBMovie, watched: boolean, watching?: boolean) => Promise<void>;
   isTracked: (tmdbId: string) => boolean;
   onSearchSubmit?: (query: string) => void;
 }
@@ -95,13 +95,13 @@ export default function SearchBar({ onAddMovie, isTracked, onSearchSubmit }: Sea
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleAdd = async (movie: TMDBMovie, watched: boolean) => {
-    const key = `${movie.id}-${watched}`;
+  const handleAdd = async (movie: TMDBMovie, watched: boolean, watching = false) => {
+    const key = `${movie.id}-${watched}-${watching}`;
     if (addingState[key]) return;
 
     setAddingState((prev) => ({ ...prev, [key]: true }));
     try {
-      await onAddMovie(movie, watched);
+      await onAddMovie(movie, watched, watching);
     } finally {
       setAddingState((prev) => ({ ...prev, [key]: false }));
     }
@@ -257,27 +257,40 @@ export default function SearchBar({ onAddMovie, isTracked, onSearchSubmit }: Sea
                     </div>
                   </div>
 
-                  {/* Second Row: Action Triggers */}
-                  <div className="flex items-center gap-1.5 w-full sm:w-auto mt-2 sm:mt-0 select-none pl-12 sm:pl-0">
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-1.5 w-auto mt-2 sm:mt-0 select-none pl-12 sm:pl-0 shrink-0">
                     {movieTracked ? (
-                      <span className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-zinc-900/80 border border-zinc-850 text-zinc-500 text-[10px] font-semibold rounded-lg select-none w-full sm:w-auto">
+                      <span className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-zinc-900/80 border border-zinc-800 text-zinc-500 text-[10px] font-semibold rounded-lg select-none">
                         <Check className="w-3 h-3 text-emerald-500" /> Tracked
                       </span>
                     ) : (
                       <>
+                        {/* Add to Unwatched Queue */}
                         <button
-                          onClick={() => handleAdd(movie, false)}
-                          disabled={addingState[`${movie.id}-false`]}
-                          className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-[10px] font-bold rounded-lg border border-zinc-800 shadow-sm active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                          onClick={() => handleAdd(movie, false, false)}
+                          disabled={addingState[`${movie.id}-false-false`]}
+                          className="h-[28px] w-[28px] inline-flex items-center justify-center bg-zinc-950 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded-lg border border-zinc-800 hover:border-zinc-700 active:scale-95 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                          title="Add to Unwatched Queue"
                         >
-                          <Plus className="w-3 h-3 text-zinc-400" /> Queue
+                          <BookmarkPlus className="w-3.5 h-3.5" />
                         </button>
+                        {/* Add to Currently Watching */}
                         <button
-                          onClick={() => handleAdd(movie, true)}
-                          disabled={addingState[`${movie.id}-true`]}
-                          className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-white hover:bg-zinc-100 text-zinc-950 text-[10px] font-bold rounded-lg shadow-sm active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                          onClick={() => handleAdd(movie, false, true)}
+                          disabled={addingState[`${movie.id}-false-true`]}
+                          className="h-[28px] w-[28px] inline-flex items-center justify-center bg-zinc-950 hover:bg-indigo-500/15 text-zinc-400 hover:text-indigo-400 rounded-lg border border-zinc-800 hover:border-indigo-500/40 active:scale-95 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                          title="Add to Currently Watching"
                         >
-                          <Check className="w-3 h-3 text-zinc-950" /> Watched
+                          <PlayCircle className="w-3.5 h-3.5" />
+                        </button>
+                        {/* Mark as Watched */}
+                        <button
+                          onClick={() => handleAdd(movie, true, false)}
+                          disabled={addingState[`${movie.id}-true-false`]}
+                          className="h-[28px] w-[28px] inline-flex items-center justify-center bg-zinc-950 hover:bg-emerald-500/15 text-zinc-400 hover:text-emerald-400 rounded-lg border border-zinc-800 hover:border-emerald-500/40 active:scale-95 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                          title="Mark as Watched"
+                        >
+                          <Check className="w-3.5 h-3.5" />
                         </button>
                       </>
                     )}

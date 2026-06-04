@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Film, Check, ThumbsDown, Plus } from "lucide-react";
+import { Film, Check, ThumbsDown, Plus, PlayCircle } from "lucide-react";
 import { Movie } from "@/types";
 
 interface MovieCardProps {
@@ -19,6 +19,11 @@ interface MovieCardProps {
   myWatched?: boolean;
   /** Override: whether the current user personally declined this title (used when viewing a friend's row) */
   myDeclined?: boolean;
+  onToggleWatching?: (id: string) => Promise<void>;
+  myWatching?: boolean;
+  onConfirmNewSeason?: (id: string, seasonNumber: number) => Promise<void>;
+  onDismissNewSeason?: (id: string, seasonNumber: number) => Promise<void>;
+  onDismissNewlyReleased?: (id: string) => Promise<void>;
 }
 
 export default function MovieCard({
@@ -34,6 +39,11 @@ export default function MovieCard({
   onAddToMyList,
   myWatched,
   myDeclined,
+  onToggleWatching,
+  myWatching,
+  onConfirmNewSeason,
+  onDismissNewSeason,
+  onDismissNewlyReleased,
 }: MovieCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [localReleaseDate, setLocalReleaseDate] = useState<string | null>(movie.release_date || null);
@@ -116,56 +126,79 @@ export default function MovieCard({
   // If myWatched/myDeclined props are provided (viewing friend's row), use those for the current user's status
   const watchedBy = movie.watched_by ? movie.watched_by.split(", ").filter(Boolean) : [];
   const declinedBy = movie.declined_by ? movie.declined_by.split(", ").filter(Boolean) : [];
+  const watchingBy = movie.watching_by ? movie.watching_by.split(", ").filter(Boolean) : [];
 
   // Resolve the current user's actual status:
-  // - prefer explicit override props (myWatched / myDeclined) when viewing a friend's row
-  // - fall back to the movie row's watched_by / declined_by fields
+  // - prefer explicit override props (myWatched / myDeclined / myWatching) when viewing a friend's row
+  // - fall back to the movie row's watched_by / declined_by / watching_by fields
   const iAmWatched  = myWatched  !== undefined ? myWatched  : watchedBy.includes(myName);
   const iAmDeclined = myDeclined !== undefined ? myDeclined : declinedBy.includes(myName);
+  const iAmWatching = myWatching !== undefined ? myWatching : watchingBy.includes(myName);
 
   const renderActionButtons = () => {
+    const btnBase = "h-[28px] w-full rounded-lg border flex items-center justify-center cursor-pointer transition-all active:scale-95 duration-200 shadow-sm";
+
     return (
-      <div className="grid grid-cols-2 gap-1.5 w-full select-none">
-        {/* User-specific Mark as Watched Toggle — uses iAmWatched which respects cross-row status */}
+      <div className="flex gap-1.5 w-full select-none">
+        {/* Watched toggle */}
         {iAmWatched ? (
           <button
             onClick={() => onToggleFriendWatched(movie.id, myName)}
-            className="h-[28px] rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/35 text-emerald-400 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 duration-200 shadow-sm text-[9px] font-bold"
-            title="You watched this — click to unmark"
+            className={`${btnBase} bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/35 text-emerald-400`}
+            title="Watched — click to unmark"
           >
-            <Check className="w-3 h-3 stroke-[2.5]" />
-            <span>Watched</span>
+            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
           </button>
         ) : (
           <button
             onClick={() => onToggleFriendWatched(movie.id, myName)}
-            className="h-[28px] rounded-lg bg-zinc-950 hover:bg-amber-500 border border-zinc-800 hover:border-amber-500 text-zinc-400 hover:text-zinc-950 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 duration-200 shadow-sm text-[9px] font-bold"
-            title="Mark as watched"
+            className={`${btnBase} ${iAmWatching ? "bg-gradient-to-r from-emerald-500 to-teal-600 border-emerald-500 hover:opacity-90 text-zinc-950" : "bg-zinc-950 hover:bg-emerald-500/15 border-zinc-800 hover:border-emerald-500/40 text-zinc-400 hover:text-emerald-400"}`}
+            title={iAmWatching ? "Mark as watched" : "Mark as watched"}
           >
-            <Check className="w-3 h-3" />
-            <span>Watched</span>
+            <Check className="w-3.5 h-3.5" />
           </button>
         )}
 
-        {/* Decline / Not Interested Button — uses iAmDeclined which respects cross-row status */}
-        {iAmDeclined ? (
-          <button
-            onClick={() => onToggleDeclined(movie.id, myName)}
-            className="h-[28px] rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/35 text-amber-500 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 duration-200 shadow-sm text-[9px] font-bold"
-            title="You declined this — click to restore"
-          >
-            <ThumbsDown className="w-3 h-3 stroke-[2.5]" />
-            <span>Declined</span>
-          </button>
-        ) : (
-          <button
-            onClick={() => onToggleDeclined(movie.id, myName)}
-            className="h-[28px] rounded-lg bg-zinc-950 hover:bg-red-500/15 border border-zinc-800 hover:border-red-500/40 text-zinc-650 hover:text-red-400 flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 duration-200 shadow-sm text-[9px] font-bold"
-            title="Not Interested / Decline"
-          >
-            <ThumbsDown className="w-3 h-3" />
-            <span>Decline</span>
-          </button>
+        {/* Watching toggle */}
+        {!iAmWatched && onToggleWatching && (
+          iAmWatching ? (
+            <button
+              onClick={() => onToggleWatching(movie.id)}
+              className={`${btnBase} bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400`}
+              title="Stop watching"
+            >
+              <PlayCircle className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <button
+              onClick={() => onToggleWatching(movie.id)}
+              className={`${btnBase} bg-zinc-950 hover:bg-indigo-500/15 border-zinc-800 hover:border-indigo-500/40 text-zinc-400 hover:text-indigo-400`}
+              title="Start watching"
+            >
+              <PlayCircle className="w-3.5 h-3.5 animate-pulse" />
+            </button>
+          )
+        )}
+
+        {/* Decline toggle */}
+        {!iAmWatched && !iAmWatching && (
+          iAmDeclined ? (
+            <button
+              onClick={() => onToggleDeclined(movie.id, myName)}
+              className={`${btnBase} bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/35 text-amber-500`}
+              title="Declined — click to restore"
+            >
+              <ThumbsDown className="w-3.5 h-3.5 stroke-[2.5]" />
+            </button>
+          ) : (
+            <button
+              onClick={() => onToggleDeclined(movie.id, myName)}
+              className={`${btnBase} bg-zinc-950 hover:bg-red-500/15 border-zinc-800 hover:border-red-500/40 text-zinc-500 hover:text-red-400`}
+              title="Not interested / Decline"
+            >
+              <ThumbsDown className="w-3.5 h-3.5" />
+            </button>
+          )
         )}
       </div>
     );
@@ -309,7 +342,67 @@ export default function MovieCard({
               </button>
             )
           )}
-          {isUpcoming ? (
+          {movie.has_new_season ? (
+            /* New Season Alert Banner */
+            <div className="w-full rounded-xl bg-amber-500/10 border border-amber-500/25 p-2 flex flex-col gap-1.5 select-none">
+              <div className="flex items-center gap-1.5 text-[9.5px] font-black text-amber-400 uppercase tracking-widest leading-none">
+                <span className="animate-pulse">🆕</span> Season {movie.new_season_number || 1} Out!
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 w-full mt-0.5">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onConfirmNewSeason?.(movie.id, movie.new_season_number || 1);
+                  }}
+                  className="h-[26px] rounded-lg bg-amber-500 text-zinc-950 hover:bg-amber-400 flex items-center justify-center gap-0.5 cursor-pointer transition-all active:scale-95 duration-200 text-[8.5px] font-black uppercase tracking-wider"
+                  title="Mark this season as watched"
+                >
+                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                  <span>Watched</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDismissNewSeason?.(movie.id, movie.new_season_number || 1);
+                  }}
+                  className="h-[26px] rounded-lg bg-zinc-950 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center gap-0.5 cursor-pointer transition-all active:scale-95 duration-200 text-[8.5px] font-black uppercase tracking-wider"
+                  title="Dismiss alert and return to Watched list"
+                >
+                  <span>Dismiss</span>
+                </button>
+              </div>
+            </div>
+          ) : movie.is_newly_released ? (
+            /* Newly Released Alert Banner */
+            <div className="w-full rounded-xl bg-indigo-500/10 border border-indigo-500/25 p-2 flex flex-col gap-1.5 select-none">
+              <div className="flex items-center gap-1.5 text-[9.5px] font-black text-indigo-400 uppercase tracking-widest leading-none">
+                <span className="animate-bounce">🎉</span> Released!
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 w-full mt-0.5">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleFriendWatched(movie.id, myName);
+                  }}
+                  className="h-[26px] rounded-lg bg-indigo-500 text-white hover:bg-indigo-400 flex items-center justify-center gap-0.5 cursor-pointer transition-all active:scale-95 duration-200 text-[8.5px] font-black uppercase tracking-wider"
+                  title="Mark as watched"
+                >
+                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                  <span>Watched</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDismissNewlyReleased?.(movie.id);
+                  }}
+                  className="h-[26px] rounded-lg bg-zinc-950 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 flex items-center justify-center gap-0.5 cursor-pointer transition-all active:scale-95 duration-200 text-[8.5px] font-black uppercase tracking-wider"
+                  title="Stop watching and return to queue"
+                >
+                  <span>Back</span>
+                </button>
+              </div>
+            </div>
+          ) : isUpcoming ? (
             <div className="w-full h-[28px] rounded-lg bg-indigo-500/5 border border-indigo-500/10 text-indigo-400/90 flex items-center justify-center gap-1.5 text-[8.5px] font-extrabold uppercase tracking-widest select-none">
               ⏳ Coming Soon
             </div>

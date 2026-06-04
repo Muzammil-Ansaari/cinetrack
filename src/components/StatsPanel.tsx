@@ -1,17 +1,19 @@
 "use client";
 
-import { Clock, BookOpen, CheckCircle } from "lucide-react";
+import { Clock, BookOpen, CheckCircle, PlayCircle } from "lucide-react";
 
 interface StatsPanelProps {
   unwatchedCount: number;
   myWatchedCount: number;
   totalRuntime: number; // in minutes
+  watchingCount?: number;
 }
 
 export default function StatsPanel({
   unwatchedCount,
   myWatchedCount,
   totalRuntime,
+  watchingCount = 0,
 }: StatsPanelProps) {
   const formatWatchTime = (minutes: number) => {
     if (minutes <= 0) return "0m";
@@ -28,6 +30,13 @@ export default function StatsPanel({
       sub: "Your personal watch time",
       icon: <Clock className="w-4 h-4" />,
       color: "indigo",
+    },
+    {
+      label: "Watching",
+      value: watchingCount,
+      sub: "Titles in progress",
+      icon: <PlayCircle className="w-4 h-4" />,
+      color: "violet",
     },
     {
       label: "Unwatched",
@@ -55,7 +64,7 @@ export default function StatsPanel({
   return (
     <section className="select-none animate-fade-in space-y-4">
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
         {stats.map(({ label, value, sub, icon, color }) => {
           const c = colorMap[color];
           return (

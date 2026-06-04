@@ -24,7 +24,9 @@ import {
   ChevronRight,
   Calendar,
   Shield,
-  Settings
+  Settings,
+  PlayCircle,
+  BookmarkPlus
 } from "lucide-react";
 import { Movie, TMDBMovie } from "@/types";
 // Supabase deprecated, utilizing native MongoDB operations
@@ -42,7 +44,7 @@ import SettingsPanel from "@/components/SettingsPanel";
 
 interface ActivityLog {
   id: string;
-  type: "add" | "watch" | "unwatch" | "delete" | "rate" | "review" | "decline" | "undecline";
+  type: "add" | "watch" | "unwatch" | "delete" | "rate" | "review" | "decline" | "undecline" | "start_watching" | "stop_watching";
   title: string;
   category: string;
   timestamp: string;
@@ -65,7 +67,7 @@ function DashboardInner() {
   const [showFriendsPanel, setShowFriendsPanel] = useState(false);
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "unwatched" | "upcoming_watchlist" | "watched" | "declined" | "search_results" | "admin" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "unwatched" | "watching" | "upcoming_watchlist" | "watched" | "declined" | "search_results" | "admin" | "settings">("dashboard");
   const [toast, setToast] = useState<{ message: string; type: "success" | "warning" | "info" } | null>(null);
   const [isCustomMovieModalOpen, setIsCustomMovieModalOpen] = useState(false);
   
@@ -327,6 +329,7 @@ function DashboardInner() {
   
   // Local filters for the lists tabs
   const [unwatchedFilter, setUnwatchedFilter] = useState("");
+  const [watchingFilter, setWatchingFilter] = useState("");
   const [watchedFilter, setWatchedFilter] = useState("");
   const [declinedFilter, setDeclinedFilter] = useState("");
   const [unwatchedGenreFilter, setUnwatchedGenreFilter] = useState("");
@@ -353,6 +356,7 @@ function DashboardInner() {
 
   // Recent Activity Feed
   const [activities, setActivities] = useState<ActivityLog[]>([]);
+  const hasRunBackgroundChecks = useRef(false);
 
   // Real-time synchronization is handled via HTTP polling
   const broadcastMovieChange = useCallback(() => {
@@ -427,6 +431,18 @@ function DashboardInner() {
       const watched = m.watched_by.split(", ").map(w => w.trim().toLowerCase()).filter(Boolean);
       if (watched.includes(name.toLowerCase())) return true;
     }
+  }, [getUserIdByName]);
+
+  const isMovieWatchingByUser = useCallback((m: Movie, name: string) => {
+    const targetUserId = getUserIdByName(name);
+    if (targetUserId && m.watching_by_ids) {
+      const watchingIds = m.watching_by_ids.split(", ").filter(Boolean);
+      if (watchingIds.includes(targetUserId)) return true;
+    }
+    if (m.watching_by) {
+      const watching = m.watching_by.split(", ").map(w => w.trim().toLowerCase()).filter(Boolean);
+      if (watching.includes(name.toLowerCase())) return true;
+    }
     return false;
   }, [getUserIdByName]);
 
@@ -455,6 +471,7 @@ function DashboardInner() {
 
   const [watchedViewMode, setWatchedViewMode] = useState<string>("my-list");
   const [unwatchedViewMode, setUnwatchedViewMode] = useState<string>("my-list");
+  const [watchingViewMode, setWatchingViewMode] = useState<string>("my-list");
   const [upcomingViewMode, setUpcomingViewMode] = useState<string>("my-list");
 
 
@@ -507,15 +524,19 @@ function DashboardInner() {
         // Populate watched_by / declined_by so filter helpers can work on single rows
         const watchedBy   = row.watched  ? ownerName : (row.watched_by  || "");
         const declinedBy  = row.declined ? ownerName : (row.declined_by || "");
+        const watchingBy  = row.watching ? ownerName : (row.watching_by || "");
         const watchedByIds   = row.watched  ? (row.user_id || "") : (row.watched_by_ids  || "");
         const declinedByIds  = row.declined ? (row.user_id || "") : (row.declined_by_ids || "");
+        const watchingByIds  = row.watching ? (row.user_id || "") : (row.watching_by_ids || "");
 
         return {
           ...row,
           watched_by:      watchedBy,
           declined_by:     declinedBy,
+          watching_by:     watchingBy,
           watched_by_ids:  watchedByIds,
           declined_by_ids: declinedByIds,
+          watching_by_ids: watchingByIds,
           // Ensure the "Added by" label is resolved from user_id
           reviews_json: row.reviews_json || ownerName,
           owners:       row.owners       || ownerName,
@@ -544,6 +565,7 @@ function DashboardInner() {
 
   // Load Movies and Activities on mount / when user or friends change
   useEffect(() => {
+    hasRunBackgroundChecks.current = false;
     async function loadData() {
       // Optimistically load from localStorage cache first so dashboard opens with content instantly
       const cached = localStorage.getItem("cinetrack_movies_cache");
@@ -661,6 +683,159 @@ function DashboardInner() {
     }
   };
 
+
+
+  // Background loop to check for new seasons of watched TV shows
+  const checkForNewSeasons = useCallback(async () => {
+    if (!user) return;
+    
+    // Find user's watched TV shows/Anime to check
+    const today = new Date();
+    const toCheck = movies.filter((m) => {
+      if (m.user_id !== user?.id) return false;
+      if (!m.watched) return false;
+      if (m.category !== "TV Show" && m.category !== "Anime") return false;
+      
+      // If today matches or is past a known next air date, bypass the 7-day restriction!
+      if (m.next_episode_air_date) {
+        const todayStr = today.toISOString().split("T")[0];
+        if (todayStr >= m.next_episode_air_date) return true;
+      }
+
+      if (!m.last_checked_at) return true;
+      const diffMs = today.getTime() - new Date(m.last_checked_at).getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      return diffDays >= 7;
+    });
+
+    if (toCheck.length === 0) return;
+
+    console.log(`CineTrack [Background Season Check]: Found ${toCheck.length} show(s) to check.`);
+
+    // Batch process in groups of 3 to avoid hitting TMDB rate limit / request timeouts
+    for (let i = 0; i < toCheck.length; i += 3) {
+      const batch = toCheck.slice(i, i + 3);
+      await Promise.all(
+        batch.map(async (show) => {
+          try {
+            const res = await fetch(`/api/tmdb/check-seasons?tmdb_id=${show.tmdb_id}`);
+            if (!res.ok) throw new Error("TMDB check failed");
+            const { number_of_seasons, next_episode_air_date } = await res.json();
+
+            // Use the TV Show's seasons count if stored, or fall back to TMDB check response
+            const currentCount = show.last_season_count ?? show.seasons ?? 1;
+
+            if (number_of_seasons > currentCount) {
+              console.log(`CineTrack: New season detected for show "${show.title}": ${number_of_seasons} seasons (was ${currentCount})`);
+              
+              // Move to Watching and clear Watched
+              await fetch(`/api/movies?id=${show.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  watching: true,
+                  watched: false,
+                  has_new_season: true,
+                  new_season_number: number_of_seasons,
+                  last_season_count: currentCount,
+                  last_checked_at: new Date().toISOString(),
+                  next_episode_air_date: null,
+                })
+              });
+
+              // Log activity
+              logActivity(
+                "start_watching",
+                show.title,
+                show.category,
+                `system auto-moved because Season ${number_of_seasons} is out!`
+              );
+            } else {
+              // Just update last_checked_at to reset rate limit, and save next_episode_air_date
+              await fetch(`/api/movies?id=${show.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  last_checked_at: new Date().toISOString(),
+                  next_episode_air_date: next_episode_air_date || null,
+                })
+              });
+            }
+          } catch (e) {
+            console.warn(`CineTrack [Background Season Check] Error checking "${show.title}":`, e);
+          }
+        })
+      );
+      // Wait a brief rate limit buffer between batches
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    // Refresh movies to display the updated state
+    refetchRef.current();
+  }, [user, movies, logActivity]);
+
+  // Background loop to promote upcoming titles whose release date has arrived/passed
+  const autoPromoteUpcoming = useCallback(async () => {
+    if (!user) return;
+
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    const toPromote = movies.filter((m) => {
+      if (m.user_id !== user?.id) return false;
+      if (m.watched || m.watching || m.declined) return false;
+      if (!m.release_date) return false;
+      return m.release_date <= todayStr;
+    });
+
+    if (toPromote.length === 0) return;
+
+    console.log(`CineTrack [Background Release Check]: Promoting ${toPromote.length} title(s) to Watching queue.`);
+
+    await Promise.all(
+      toPromote.map(async (movie) => {
+        try {
+          await fetch(`/api/movies?id=${movie.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              watching: true,
+              is_newly_released: true,
+            })
+          });
+
+          // Log activity
+          logActivity(
+            "start_watching",
+            movie.title,
+            movie.category,
+            "system auto-moved because its release date has arrived!"
+          );
+        } catch (e) {
+          console.warn(`CineTrack [Background Release Check] Error promoting "${movie.title}":`, e);
+        }
+      })
+    );
+
+    // Refresh movies to display the updated state
+    refetchRef.current();
+  }, [user, movies, logActivity]);
+
+  // Run background loops once movies have been initially loaded
+  useEffect(() => {
+    if (!user || loading || movies.length === 0) return;
+    if (hasRunBackgroundChecks.current) return;
+
+    hasRunBackgroundChecks.current = true;
+    
+    // Defer slightly to let page render/initialize smoothly first
+    const timer = setTimeout(() => {
+      autoPromoteUpcoming();
+      checkForNewSeasons();
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [user, loading, movies.length, autoPromoteUpcoming, checkForNewSeasons]);
+
   // Helper to format activity timestamps relative to now
   const formatTimeAgo = (isoString: string) => {
     const diffMs = Date.now() - new Date(isoString).getTime();
@@ -685,7 +860,7 @@ function DashboardInner() {
 
 
   // 1. Add Movie operation
-  const handleAddMovie = async (tmdbMovie: TMDBMovie, watched: boolean) => {
+  const handleAddMovie = async (tmdbMovie: TMDBMovie, watched: boolean, watching = false) => {
     console.log("CineTrack [Diagnostics]: handleAddMovie triggered", { 
       title: tmdbMovie.title, 
       id: tmdbMovie.id, 
@@ -789,6 +964,9 @@ function DashboardInner() {
         user_id: user?.id || null,
         created_at: new Date().toISOString(),
         watched_at: watched ? new Date().toISOString() : null,
+        watching: watching || undefined,
+        watching_by: watching ? myName : undefined,
+        watching_by_ids: watching ? (user?.id || undefined) : undefined,
       };
       console.log("CineTrack [Diagnostics]: New entry object prepared:", newEntry);
 
@@ -824,21 +1002,25 @@ function DashboardInner() {
         "add", 
         tmdbMovie.title, 
         category, 
-        watched 
-          ? "added it to Watched list" 
-          : isMovieUpcoming 
-            ? "added it to Upcoming list" 
-            : "added it to Unwatched list"
+        watching
+          ? "added it to Currently Watching"
+          : watched 
+            ? "added it to Watched list" 
+            : isMovieUpcoming 
+              ? "added it to Upcoming list" 
+              : "added it to Unwatched list"
       );
 
       console.log("CineTrack [Diagnostics]: Adding movie successful!");
       showToast(
         `Added "${tmdbMovie.title}" to ${
-          watched 
-            ? "Watched Collection" 
-            : isMovieUpcoming 
-              ? "Upcoming Watchlist" 
-              : "Unwatched Queue"
+          watching
+            ? "Currently Watching"
+            : watched 
+              ? "Watched Collection" 
+              : isMovieUpcoming 
+                ? "Upcoming Watchlist" 
+                : "Unwatched Queue"
         }!`,
         "success"
       );
@@ -1015,6 +1197,12 @@ function DashboardInner() {
         runtime: targetMovie.runtime,
         synopsis: targetMovie.synopsis,
         watched: isMarkingWatched,
+        watching: false,
+        is_newly_released: false,
+        has_new_season: false,
+        new_season_number: null,
+        last_season_count: isMarkingWatched ? (targetMovie.seasons || 1) : (myOwnRow?.last_season_count || 1),
+        last_checked_at: myOwnRow?.last_checked_at || null,
         rating: myOwnRow?.rating ?? null,
         review: myOwnRow?.review ?? null,
         seasons: targetMovie.seasons,
@@ -1063,6 +1251,280 @@ function DashboardInner() {
       );
     } catch (err) {
       console.error("Failed to update watched status:", err);
+      showToast("Error updating status.", "warning");
+    }
+  };
+
+  // 2ab. Watching State Toggle — moves movie/show to/from the currently watching queue
+  const handleToggleWatching = async (id: string) => {
+    await ensureFreshSession();
+    const targetMovie = movies.find((m) => m.id === id);
+    if (!targetMovie) return;
+
+    const myOwnRow = movies.find(
+      (m) => m.tmdb_id === targetMovie.tmdb_id && m.user_id === user?.id
+    );
+
+    const currentlyWatching = myOwnRow ? !!myOwnRow.watching : false;
+    const isStartingWatching = !currentlyWatching;
+
+    const resolvedCreatedAt = myOwnRow?.created_at || new Date().toISOString();
+
+    try {
+      const newEntry = {
+        tmdb_id: targetMovie.tmdb_id,
+        title: targetMovie.title,
+        poster_path: targetMovie.poster_path,
+        backdrop_path: targetMovie.backdrop_path,
+        release_year: targetMovie.release_year,
+        runtime: targetMovie.runtime,
+        synopsis: targetMovie.synopsis,
+        watched: false,
+        watching: isStartingWatching,
+        declined: false,
+        is_newly_released: false,
+        has_new_season: false,
+        new_season_number: null,
+        last_season_count: myOwnRow?.last_season_count || targetMovie.seasons || 1,
+        last_checked_at: myOwnRow?.last_checked_at || null,
+        rating: myOwnRow?.rating ?? null,
+        review: myOwnRow?.review ?? null,
+        seasons: targetMovie.seasons,
+        episodes: targetMovie.episodes || null,
+        category: targetMovie.category,
+        global_rating: targetMovie.global_rating,
+        genres: targetMovie.genres,
+        user_id: user?.id,
+        watched_by: "",
+        ratings_json: "{}",
+        reviews_json: "{}",
+        created_at: resolvedCreatedAt,
+        watched_at: null,
+      };
+
+      const res = await fetch("/api/movies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newEntry)
+      });
+
+      if (!res.ok) throw new Error("Failed to update watching status in MongoDB");
+
+      await refetchMovies();
+      broadcastMovieChange();
+
+      logActivity(
+        isStartingWatching ? "start_watching" : "stop_watching",
+        targetMovie.title,
+        targetMovie.category,
+        isStartingWatching ? "started watching it" : "stopped watching it (moved back to Unwatched)"
+      );
+
+      showToast(
+        isStartingWatching
+          ? `Started watching "${targetMovie.title}"!`
+          : `Moved "${targetMovie.title}" back to Unwatched list.`,
+        "success"
+      );
+    } catch (err) {
+      console.error("Failed to update watching status:", err);
+      showToast("Error updating watching status.", "warning");
+    }
+  };
+
+  // 2ac. Confirm New Season — marks new season as watched and returns the TV show to Watched list
+  const handleConfirmNewSeason = async (id: string, seasonNumber: number) => {
+    await ensureFreshSession();
+    const targetMovie = movies.find((m) => m.id === id);
+    if (!targetMovie) return;
+
+    const myOwnRow = movies.find(
+      (m) => m.tmdb_id === targetMovie.tmdb_id && m.user_id === user?.id
+    );
+    const resolvedCreatedAt = myOwnRow?.created_at || new Date().toISOString();
+
+    try {
+      const newEntry = {
+        tmdb_id: targetMovie.tmdb_id,
+        title: targetMovie.title,
+        poster_path: targetMovie.poster_path,
+        backdrop_path: targetMovie.backdrop_path,
+        release_year: targetMovie.release_year,
+        runtime: targetMovie.runtime,
+        synopsis: targetMovie.synopsis,
+        watched: true,
+        watching: false,
+        declined: false,
+        is_newly_released: false,
+        has_new_season: false,
+        new_season_number: null,
+        last_season_count: seasonNumber,
+        last_checked_at: new Date().toISOString(),
+        rating: myOwnRow?.rating ?? null,
+        review: myOwnRow?.review ?? null,
+        seasons: targetMovie.seasons,
+        episodes: targetMovie.episodes || null,
+        category: targetMovie.category,
+        global_rating: targetMovie.global_rating,
+        genres: targetMovie.genres,
+        user_id: user?.id,
+        watched_by: "",
+        ratings_json: "{}",
+        reviews_json: "{}",
+        created_at: resolvedCreatedAt,
+        watched_at: new Date().toISOString(),
+      };
+
+      const res = await fetch("/api/movies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newEntry)
+      });
+
+      if (!res.ok) throw new Error("Failed to confirm new season in MongoDB");
+
+      await refetchMovies();
+      broadcastMovieChange();
+
+      logActivity(
+        "watch",
+        targetMovie.title,
+        targetMovie.category,
+        `marked Season ${seasonNumber} as watched`
+      );
+
+      showToast(`Marked Season ${seasonNumber} of "${targetMovie.title}" as watched!`, "success");
+    } catch (err) {
+      console.error("Failed to confirm new season:", err);
+      showToast("Error confirming new season.", "warning");
+    }
+  };
+
+  // 2ad. Dismiss New Season — returns the TV show to Watched list without marking the new season as watched
+  const handleDismissNewSeason = async (id: string, seasonNumber: number) => {
+    await ensureFreshSession();
+    const targetMovie = movies.find((m) => m.id === id);
+    if (!targetMovie) return;
+
+    const myOwnRow = movies.find(
+      (m) => m.tmdb_id === targetMovie.tmdb_id && m.user_id === user?.id
+    );
+    const resolvedCreatedAt = myOwnRow?.created_at || new Date().toISOString();
+
+    try {
+      const newEntry = {
+        tmdb_id: targetMovie.tmdb_id,
+        title: targetMovie.title,
+        poster_path: targetMovie.poster_path,
+        backdrop_path: targetMovie.backdrop_path,
+        release_year: targetMovie.release_year,
+        runtime: targetMovie.runtime,
+        synopsis: targetMovie.synopsis,
+        watched: true,
+        watching: false,
+        declined: false,
+        is_newly_released: false,
+        has_new_season: false,
+        new_season_number: null,
+        last_season_count: seasonNumber,
+        last_checked_at: new Date().toISOString(),
+        rating: myOwnRow?.rating ?? null,
+        review: myOwnRow?.review ?? null,
+        seasons: targetMovie.seasons,
+        episodes: targetMovie.episodes || null,
+        category: targetMovie.category,
+        global_rating: targetMovie.global_rating,
+        genres: targetMovie.genres,
+        user_id: user?.id,
+        watched_by: "",
+        ratings_json: "{}",
+        reviews_json: "{}",
+        created_at: resolvedCreatedAt,
+        watched_at: myOwnRow?.watched_at || null,
+      };
+
+      const res = await fetch("/api/movies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newEntry)
+      });
+
+      if (!res.ok) throw new Error("Failed to dismiss new season in MongoDB");
+
+      await refetchMovies();
+      broadcastMovieChange();
+
+      showToast(`Dismissed new season alert for "${targetMovie.title}".`, "info");
+    } catch (err) {
+      console.error("Failed to dismiss new season alert:", err);
+      showToast("Error dismissing alert.", "warning");
+    }
+  };
+
+  // 2ae. Dismiss Newly Released — moves newly released title back to Unwatched queue
+  const handleDismissNewlyReleased = async (id: string) => {
+    await ensureFreshSession();
+    const targetMovie = movies.find((m) => m.id === id);
+    if (!targetMovie) return;
+
+    const myOwnRow = movies.find(
+      (m) => m.tmdb_id === targetMovie.tmdb_id && m.user_id === user?.id
+    );
+    const resolvedCreatedAt = myOwnRow?.created_at || new Date().toISOString();
+
+    try {
+      const newEntry = {
+        tmdb_id: targetMovie.tmdb_id,
+        title: targetMovie.title,
+        poster_path: targetMovie.poster_path,
+        backdrop_path: targetMovie.backdrop_path,
+        release_year: targetMovie.release_year,
+        runtime: targetMovie.runtime,
+        synopsis: targetMovie.synopsis,
+        watched: false,
+        watching: false,
+        declined: false,
+        is_newly_released: false,
+        has_new_season: false,
+        new_season_number: null,
+        last_season_count: myOwnRow?.last_season_count || targetMovie.seasons || 1,
+        last_checked_at: myOwnRow?.last_checked_at || null,
+        rating: myOwnRow?.rating ?? null,
+        review: myOwnRow?.review ?? null,
+        seasons: targetMovie.seasons,
+        episodes: targetMovie.episodes || null,
+        category: targetMovie.category,
+        global_rating: targetMovie.global_rating,
+        genres: targetMovie.genres,
+        user_id: user?.id,
+        watched_by: "",
+        ratings_json: "{}",
+        reviews_json: "{}",
+        created_at: resolvedCreatedAt,
+        watched_at: null,
+      };
+
+      const res = await fetch("/api/movies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newEntry)
+      });
+
+      if (!res.ok) throw new Error("Failed to dismiss newly released in MongoDB");
+
+      await refetchMovies();
+      broadcastMovieChange();
+
+      logActivity(
+        "stop_watching",
+        targetMovie.title,
+        targetMovie.category,
+        "moved back to Unwatched list"
+      );
+
+      showToast(`Moved "${targetMovie.title}" back to Unwatched list.`, "success");
+    } catch (err) {
+      console.error("Failed to dismiss newly released:", err);
       showToast("Error updating status.", "warning");
     }
   };
@@ -1420,21 +1882,34 @@ function DashboardInner() {
   const baseDeclinedList = movies.filter((m) => isMovieDeclinedByUser(m, myName));
 
   // MY WATCHED: movies where the current user personally has watched=true
-  const baseMyWatchedList = movies.filter((m) => isMovieWatchedByUser(m, myName));
+  const baseMyWatchedList = movies.filter((m) =>
+    isMovieWatchedByUser(m, myName) &&
+    !isMovieWatchingByUser(m, myName)
+  );
 
-  // MY UNWATCHED: movies owned by me, not yet watched, not declined, and already released
+  // MY WATCHING: movies owned by me, not watched, and currently being watched by me
+  const baseMyWatchingList = movies.filter((m) =>
+    isMovieOwnedByUser(m, myName) &&
+    isMovieWatchingByUser(m, myName) &&
+    !isMovieWatchedByUser(m, myName) &&
+    !isMovieDeclinedByUser(m, myName)
+  );
+
+  // MY UNWATCHED: movies owned by me, not yet watched, not declined, not watching, and already released
   const today = new Date().toISOString().split("T")[0];
   const baseMyUnwatchedList = movies.filter((m) =>
     isMovieOwnedByUser(m, myName) &&
     !isMovieWatchedByUser(m, myName) &&
+    !isMovieWatchingByUser(m, myName) &&
     !isMovieDeclinedByUser(m, myName) &&
     !(m.release_date && m.release_date > today)
   );
 
-  // MY UPCOMING: upcoming movies owned by me, not yet watched, not declined
+  // MY UPCOMING: upcoming movies owned by me, not yet watched, not declined, not watching
   const baseMyUpcomingList = baseUpcomingList.filter((m) =>
     isMovieOwnedByUser(m, myName) &&
     !isMovieWatchedByUser(m, myName) &&
+    !isMovieWatchingByUser(m, myName) &&
     !isMovieDeclinedByUser(m, myName)
   );
 
@@ -1502,7 +1977,7 @@ function DashboardInner() {
   const unwatchedList = baseUnwatchedList
     .filter((m) => {
       const activeUser = unwatchedViewMode === "my-list" ? myName : unwatchedViewMode;
-      return isMovieOwnedByUser(m, activeUser) && !isMovieWatchedByUser(m, activeUser) && !isMovieDeclinedByUser(m, activeUser);
+      return isMovieOwnedByUser(m, activeUser) && !isMovieWatchedByUser(m, activeUser) && !isMovieWatchingByUser(m, activeUser) && !isMovieDeclinedByUser(m, activeUser);
     })
     .filter((m) => m.title.toLowerCase().includes(unwatchedFilter.trim().toLowerCase()))
     .filter((m) => {
@@ -1514,6 +1989,13 @@ function DashboardInner() {
       return m.category === unwatchedCategoryFilter;
     })
     .filter((m) => filterByDateRange(m.created_at, unwatchedDatePreset, unwatchedStartDate, unwatchedEndDate));
+  const baseWatchingList = movies.filter((m) => {
+    const activeUser = watchingViewMode === "my-list" ? myName : watchingViewMode;
+    return isMovieOwnedByUser(m, activeUser) && isMovieWatchingByUser(m, activeUser) && !isMovieWatchedByUser(m, activeUser) && !isMovieDeclinedByUser(m, activeUser);
+  });
+
+  const watchingList = baseWatchingList
+    .filter((m) => m.title.toLowerCase().includes(watchingFilter.trim().toLowerCase()));
 
   const watchedList = baseWatchedList
     .filter((m) => m.title.toLowerCase().includes(watchedFilter.trim().toLowerCase()))
@@ -1584,6 +2066,7 @@ function DashboardInner() {
             {[
               { tab: "dashboard",          icon: <LayoutDashboard className="w-3.5 h-3.5" />, label: "Home",     accent: "indigo", badge: null },
               { tab: "unwatched",          icon: <Compass        className="w-3.5 h-3.5" />, label: "Unwatched", accent: "amber",  badge: baseMyUnwatchedList.length > 0 ? baseMyUnwatchedList.length : null },
+              { tab: "watching",           icon: <PlayCircle     className="w-3.5 h-3.5" />, label: "Watching",  accent: "indigo", badge: baseMyWatchingList.length > 0 ? baseMyWatchingList.length : null },
               { tab: "watched",            icon: <Trophy         className="w-3.5 h-3.5" />, label: "Watched",  accent: "emerald", badge: baseMyWatchedList.length > 0 ? baseMyWatchedList.length : null },
               { tab: "upcoming_watchlist", icon: <Calendar       className="w-3.5 h-3.5" />, label: "Upcoming", accent: "amber",   badge: baseMyUpcomingList.length > 0 ? baseMyUpcomingList.length : null },
               { tab: "declined",           icon: <ThumbsDown     className="w-3.5 h-3.5" />, label: "Declined", accent: "red",     badge: baseDeclinedList.length > 0 ? baseDeclinedList.length : null },
@@ -1779,6 +2262,7 @@ function DashboardInner() {
                 unwatchedCount={baseMyUnwatchedList.length}
                 myWatchedCount={baseMyWatchedList.length}
                 totalRuntime={totalWatchedRuntime}
+                watchingCount={baseMyWatchingList.length}
               />
             )}
 
@@ -1996,6 +2480,7 @@ function DashboardInner() {
                     : undefined;
                   const myWatched  = myOwnRow ? !!myOwnRow.watched  : undefined;
                   const myDeclined = myOwnRow ? !!myOwnRow.declined : undefined;
+                  const myWatching = myOwnRow ? !!myOwnRow.watching : undefined;
                   return (
                     <MovieCard
                       key={movie.id}
@@ -2011,7 +2496,135 @@ function DashboardInner() {
                       onAddToMyList={unwatchedViewMode !== "my-list" ? () => handleAddToMyList(movie) : undefined}
                       myWatched={myWatched}
                       myDeclined={myDeclined}
+                      onToggleWatching={handleToggleWatching}
+                      myWatching={myWatching}
+                      onConfirmNewSeason={handleConfirmNewSeason}
+                      onDismissNewSeason={handleDismissNewSeason}
+                      onDismissNewlyReleased={handleDismissNewlyReleased}
                     />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "watching" && (
+          <div className="flex flex-col gap-5 animate-fade-in">
+            {/* Queue Header Panel */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-900 pb-4 select-none">
+              <div>
+                <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                  📺 Currently Watching
+                </h2>
+                <p className="text-[10px] text-zinc-500 mt-0.5">Manage and track titles you are currently enjoying.</p>
+              </div>
+
+              {/* Local Search within Watching list */}
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                <input
+                  type="text"
+                  value={watchingFilter}
+                  onChange={(e) => setWatchingFilter(e.target.value)}
+                  placeholder="Search watching queue..."
+                  className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-indigo-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
+                />
+              </div>
+            </div>
+
+            {/* View List Selector for Watching */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
+              <span className="text-[8.5px] font-extrabold text-zinc-550 uppercase tracking-widest mr-1.5 flex items-center gap-1 flex-shrink-0">
+                <Users className="w-3.5 h-3.5 text-indigo-400" /> View List:
+              </span>
+
+              {(friends.length > 0 ? friends : [myName]).map((friend) => {
+                const isActive = watchingViewMode === "my-list" ? (friend === myName) : (watchingViewMode === friend);
+                const count = movies.filter((m) => {
+                  const activeUser = friend === myName ? myName : friend;
+                  return isMovieOwnedByUser(m, activeUser) && isMovieWatchingByUser(m, activeUser) && !isMovieWatchedByUser(m, activeUser) && !isMovieDeclinedByUser(m, activeUser);
+                }).length;
+                return (
+                  <button
+                    key={friend}
+                    onClick={() => setWatchingViewMode(friend === myName ? "my-list" : friend)}
+                    className={`px-3 py-1 text-[9.5px] font-extrabold uppercase tracking-wider rounded-xl cursor-pointer transition-all active:scale-95 duration-200 flex-shrink-0 ${
+                      isActive
+                        ? "bg-indigo-500 text-white font-bold shadow-md shadow-indigo-500/10"
+                        : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    👤 {friend === myName ? "My List" : `${friend}'s List`} {isActive ? `(${count})` : ""}
+                  </button>
+                );
+              })}
+            </div>
+
+            {loading ? (
+              <div className="py-32 flex flex-col justify-center items-center text-zinc-500 gap-2">
+                <RefreshCw className="w-6 h-6 animate-spin text-zinc-600" />
+                <span className="text-xs font-semibold">Syncing queue...</span>
+              </div>
+            ) : watchingList.length === 0 ? (
+              <div className="py-24 text-center select-none">
+                <div className="w-12 h-12 rounded-2xl bg-zinc-900/50 flex items-center justify-center mx-auto text-zinc-500 text-xl border border-zinc-850 mb-3">
+                  📺
+                </div>
+                <h4 className="text-sm font-bold text-zinc-400">
+                  {watchingViewMode === "my-list" ? "You aren't watching anything yet" : `${watchingViewMode} is not watching anything`}
+                </h4>
+                <p className="text-xs text-zinc-500 max-w-sm mx-auto mt-1 leading-relaxed">
+                  {watchingFilter
+                    ? `No matching titles found for "${watchingFilter}".`
+                    : watchingViewMode === "my-list"
+                      ? "Start watching any movie or show from your Unwatched Queue to see them here!"
+                      : `${watchingViewMode} is not watching any titles currently.`}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                {watchingList.map((movie) => {
+                  const myOwnRow = watchingViewMode !== "my-list"
+                    ? movies.find((m) => m.tmdb_id === movie.tmdb_id && m.user_id === user?.id)
+                    : undefined;
+                  const myWatched  = myOwnRow ? !!myOwnRow.watched  : undefined;
+                  const myDeclined = myOwnRow ? !!myOwnRow.declined : undefined;
+                  const myWatching = myOwnRow ? !!myOwnRow.watching : undefined;
+                  
+                  return (
+                    <div key={movie.id} className="relative group">
+                      {movie.has_new_season && (
+                        <div className="absolute top-2 right-2 z-20 px-2 py-0.5 bg-amber-500 text-zinc-950 font-black text-[7px] uppercase tracking-widest rounded shadow-md border border-amber-400 animate-pulse select-none">
+                          ⚡ New Season {movie.new_season_number ? `S${movie.new_season_number}` : ""}!
+                        </div>
+                      )}
+                      {movie.is_newly_released && (
+                        <div className="absolute top-2 right-2 z-20 px-2 py-0.5 bg-emerald-500 text-zinc-950 font-black text-[7px] uppercase tracking-widest rounded shadow-md border border-emerald-400 animate-pulse select-none">
+                          🎉 Now Available!
+                        </div>
+                      )}
+                      
+                      <MovieCard
+                        movie={movie}
+                        friends={friends}
+                        myName={myName}
+                        onToggleFriendWatched={handleToggleFriendWatched}
+                        onToggleDeclined={handleToggleDeclined}
+                        onUpdateFriendRating={handleUpdateFriendRating}
+                        onUpdateFriendReview={handleUpdateFriendReview}
+                        onCardClick={() => openDetailModal(movie.tmdb_id, movie.category)}
+                        isInMyList={movies.some((m) => m.tmdb_id === movie.tmdb_id && isMovieOwnedByUser(m, myName))}
+                        onAddToMyList={watchingViewMode !== "my-list" ? () => handleAddToMyList(movie) : undefined}
+                        myWatched={myWatched}
+                        myDeclined={myDeclined}
+                        onToggleWatching={handleToggleWatching}
+                        myWatching={myWatching}
+                        onConfirmNewSeason={handleConfirmNewSeason}
+                        onDismissNewSeason={handleDismissNewSeason}
+                        onDismissNewlyReleased={handleDismissNewlyReleased}
+                      />
+                    </div>
                   );
                 })}
               </div>
@@ -2222,6 +2835,9 @@ function DashboardInner() {
                       onAddToMyList={upcomingViewMode !== "my-list" ? () => handleAddToMyList(movie) : undefined}
                       myWatched={myWatched}
                       myDeclined={myDeclined}
+                      onConfirmNewSeason={handleConfirmNewSeason}
+                      onDismissNewSeason={handleDismissNewSeason}
+                      onDismissNewlyReleased={handleDismissNewlyReleased}
                     />
                   );
                 })}
@@ -2434,6 +3050,9 @@ function DashboardInner() {
                       onAddToMyList={watchedViewMode !== "my-list" ? () => handleAddToMyList(movie) : undefined}
                       myWatched={myWatched}
                       myDeclined={myDeclined}
+                      onConfirmNewSeason={handleConfirmNewSeason}
+                      onDismissNewSeason={handleDismissNewSeason}
+                      onDismissNewlyReleased={handleDismissNewlyReleased}
                     />
                   );
                 })}
@@ -2671,38 +3290,42 @@ function DashboardInner() {
                         </div>
 
                         {/* Second Row: Action Buttons */}
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 select-none w-full">
+                        <div className="flex items-center gap-1.5 select-none w-full">
                           {movieTracked ? (
-                            <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-zinc-950 text-zinc-555 text-[10px] font-bold rounded-xl border border-zinc-850/80 shadow-inner select-none w-full justify-center">
+                            <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-zinc-950 text-zinc-400 text-[10px] font-bold rounded-xl border border-zinc-800/80 shadow-inner select-none w-full justify-center">
                               <Trophy className="w-3.5 h-3.5 text-emerald-500" /> Tracked
                             </span>
                           ) : (
                             <>
+                              {/* Add to Unwatched Queue */}
                               <button
                                 onClick={async () => {
-                                  try {
-                                    await handleAddMovie(movie, false);
-                                    showToast(`Added ${movie.title} to Queue!`, "success");
-                                  } catch (e) {
-                                    console.error("Search add failed", e);
-                                  }
+                                  try { await handleAddMovie(movie, false, false); } catch (e) { console.error(e); }
                                 }}
-                                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-zinc-950 hover:bg-zinc-850 text-zinc-200 text-[10px] font-bold rounded-xl border border-zinc-800 shadow-sm active:scale-95 transition-all cursor-pointer"
+                                className="flex-1 h-[28px] inline-flex items-center justify-center bg-zinc-950 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded-lg border border-zinc-800 hover:border-zinc-700 active:scale-95 transition-all cursor-pointer shadow-sm"
+                                title="Add to Unwatched Queue"
                               >
-                                🍿 + Queue
+                                <BookmarkPlus className="w-3.5 h-3.5" />
                               </button>
+                              {/* Add to Currently Watching */}
                               <button
                                 onClick={async () => {
-                                  try {
-                                    await handleAddMovie(movie, true);
-                                    showToast(`Added ${movie.title} to Watched!`, "success");
-                                  } catch (e) {
-                                    console.error("Search add failed", e);
-                                  }
+                                  try { await handleAddMovie(movie, false, true); } catch (e) { console.error(e); }
                                 }}
-                                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded-xl border border-indigo-500/20 shadow-sm active:scale-95 transition-all cursor-pointer"
+                                className="flex-1 h-[28px] inline-flex items-center justify-center bg-zinc-950 hover:bg-indigo-500/15 text-zinc-400 hover:text-indigo-400 rounded-lg border border-zinc-800 hover:border-indigo-500/40 active:scale-95 transition-all cursor-pointer shadow-sm"
+                                title="Add to Currently Watching"
                               >
-                                <Check className="w-3.5 h-3.5" /> Watched
+                                <PlayCircle className="w-3.5 h-3.5 animate-pulse" />
+                              </button>
+                              {/* Add to Watched */}
+                              <button
+                                onClick={async () => {
+                                  try { await handleAddMovie(movie, true, false); } catch (e) { console.error(e); }
+                                }}
+                                className="flex-1 h-[28px] inline-flex items-center justify-center bg-zinc-950 hover:bg-emerald-500/15 text-zinc-400 hover:text-emerald-400 rounded-lg border border-zinc-800 hover:border-emerald-500/40 active:scale-95 transition-all cursor-pointer shadow-sm"
+                                title="Mark as Watched"
+                              >
+                                <Check className="w-3.5 h-3.5" />
                               </button>
                             </>
                           )}
@@ -2782,6 +3405,24 @@ function DashboardInner() {
           {baseMyUnwatchedList.length > 0 && (
             <span className="absolute top-0 right-1 bg-amber-500 text-zinc-950 text-[8px] font-extrabold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center shadow-sm">
               {baseMyUnwatchedList.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab("watching");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className={`flex flex-col items-center gap-1 cursor-pointer transition-all relative py-1 px-3 ${
+            activeTab === "watching" ? "text-indigo-400 scale-105" : "text-zinc-500 hover:text-zinc-350"
+          }`}
+        >
+          <PlayCircle className="w-5 h-5" />
+          <span className="text-[9px] font-bold">Watching</span>
+          {baseMyWatchingList.length > 0 && (
+            <span className="absolute top-0 right-1 bg-indigo-500 text-white text-[8px] font-extrabold px-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center shadow-sm">
+              {baseMyWatchingList.length}
             </span>
           )}
         </button>
