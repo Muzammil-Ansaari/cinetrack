@@ -285,7 +285,7 @@ export default function MovieCard({
 
         {/* Top-Left Category Badge on Poster */}
         {movie.category && (
-          <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-zinc-950/90 text-zinc-100 border border-zinc-800 text-[7px] font-extrabold uppercase tracking-wider backdrop-blur-[2px] select-none z-10">
+          <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-zinc-950/95 text-zinc-100 border border-zinc-800/80 text-[7px] font-extrabold uppercase tracking-wider select-none z-10">
             {movie.category}
           </span>
         )}

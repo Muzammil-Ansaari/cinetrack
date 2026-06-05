@@ -216,14 +216,14 @@ function DashboardInner() {
 
                   {/* Category Badge */}
                   {item.category && (
-                    <span className={`absolute top-2 left-2 px-1.5 py-0.5 border text-[7px] font-extrabold uppercase rounded-md tracking-wider backdrop-blur-sm select-none ${
+                    <span className={`absolute top-2 left-2 px-1.5 py-0.5 border text-[7px] font-extrabold uppercase rounded-md tracking-wider select-none ${
                       item.category === "Anime"
-                        ? "bg-purple-500/20 border-purple-500/30 text-purple-400"
+                        ? "bg-purple-950/90 border-purple-800/40 text-purple-400"
                         : item.category === "TV Show"
-                        ? "bg-blue-500/20 border-blue-500/30 text-blue-400"
+                        ? "bg-blue-950/90 border-blue-800/40 text-blue-400"
                         : item.category === "Animated Movie"
-                        ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-400"
-                        : "bg-amber-500/20 border-amber-500/30 text-amber-400"
+                        ? "bg-indigo-950/90 border-indigo-800/40 text-indigo-400"
+                        : "bg-amber-950/90 border-amber-800/40 text-amber-400"
                     }`}>
                       {item.category}
                     </span>
@@ -2103,7 +2103,7 @@ function DashboardInner() {
       <div className="fixed top-1/3 -right-40 w-96 h-96 bg-emerald-500/3 rounded-full filter blur-[100px] pointer-events-none" />
 
       {/* ── Sleek Top Bar ── */}
-      <header className="sticky top-0 z-40 w-full border-b border-zinc-900 bg-zinc-950/90 backdrop-blur-md select-none">
+      <header className="sticky top-0 z-40 w-full border-b border-zinc-900 bg-zinc-950/90 backdrop-blur-md select-none [transform:translate3d(0,0,0)] [backface-visibility:hidden]">
         <div className="max-w-6xl mx-auto px-4 md:px-8 h-14 flex items-center justify-between gap-4">
 
           {/* Logo */}
@@ -3430,7 +3430,7 @@ function DashboardInner() {
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/90 backdrop-blur-lg border-t border-zinc-900 px-0.5 py-1.5 flex items-center justify-between shadow-lg w-full overflow-hidden">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/90 backdrop-blur-lg border-t border-zinc-900 px-0.5 py-1.5 flex items-center justify-between shadow-lg w-full overflow-hidden [transform:translate3d(0,0,0)] [backface-visibility:hidden]">
         <button
           onClick={() => {
             setActiveTab("dashboard");
