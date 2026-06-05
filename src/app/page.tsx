@@ -41,6 +41,7 @@ import CustomMovieModal from "@/components/CustomMovieModal";
 import DetailModal from "@/components/DetailModal";
 import AdminPanel from "@/components/AdminPanel";
 import SettingsPanel from "@/components/SettingsPanel";
+import Pagination from "@/components/Pagination";
 
 interface ActivityLog {
   id: string;
@@ -354,6 +355,19 @@ function DashboardInner() {
   const [upcomingStartDate, setUpcomingStartDate] = useState("");
   const [upcomingEndDate, setUpcomingEndDate] = useState("");
 
+  // ── Pagination state (30 items per page, one per tab) ──────────────────────
+  const PAGE_SIZE = 30;
+  const [unwatchedPage, setUnwatchedPage] = useState(1);
+  const [watchingPage, setWatchingPage] = useState(1);
+  const [watchedPage, setWatchedPage] = useState(1);
+  const [upcomingPage, setUpcomingPage] = useState(1);
+
+  // Helper: reset a tab's page whenever filters change
+  const resetUnwatchedPage = () => setUnwatchedPage(1);
+  const resetWatchedPage   = () => setWatchedPage(1);
+  const resetUpcomingPage  = () => setUpcomingPage(1);
+  const resetWatchingPage  = () => setWatchingPage(1);
+
   // Recent Activity Feed
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const hasRunBackgroundChecks = useRef(false);
@@ -655,13 +669,12 @@ function DashboardInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, `${coWatchGroupUserIds.join(",")}:${friends.join(",")}`]);
 
-  // 🔴 Sync database when the browser tab becomes active again
+  // 🔴 Sync database when the browser tab becomes active again (one-shot, no polling)
   useEffect(() => {
     if (!user) return;
 
     const handleVisibilityChange = async () => {
       if (document.visibilityState === "visible") {
-        console.log("CineTrack: tab resumed. Syncing database...");
         refetchRef.current();
       }
     };
@@ -672,19 +685,17 @@ function DashboardInner() {
     };
   }, [user?.id]);
 
-  // 🔄 Real-time database sync: poll every 6 seconds if tab is active
-  useEffect(() => {
-    if (!user) return;
-
-    const interval = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        refetchRef.current();
-      }
-    }, 6000);
-
-    return () => clearInterval(interval);
-  }, [user?.id]);
-
+  // Manual sync state — drives the Sync button spinner in the header
+  const [isSyncing, setIsSyncing] = useState(false);
+  const handleManualSync = useCallback(async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      await refetchRef.current();
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [isSyncing]);
 
 
   // Save changes helper (synces back locally if Supabase is disabled)
@@ -2170,8 +2181,18 @@ function DashboardInner() {
             )}
           </nav>
 
-          {/* Right side: Friends + Avatar */}
+          {/* Right side: Sync + Friends + Avatar */}
           <div className="flex items-center gap-2 flex-shrink-0">
+
+            {/* Manual Sync Button */}
+            <button
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              title="Sync latest changes from database"
+              className="w-8 h-8 flex items-center justify-center rounded-xl bg-zinc-900/60 border border-zinc-800/60 text-zinc-400 hover:text-indigo-400 hover:border-indigo-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin text-indigo-400" : ""}`} />
+            </button>
 
             {/* Admin button for Mobile — only if privileged */}
             {(user?.role === "superadmin" || user?.role === "admin") && (
@@ -2357,8 +2378,8 @@ function DashboardInner() {
                 <input
                   type="text"
                   value={unwatchedFilter}
-                  onChange={(e) => setUnwatchedFilter(e.target.value)}
-                  placeholder="Search unwatched queue..."
+                  onChange={(e) => { setUnwatchedFilter(e.target.value); resetUnwatchedPage(); }}
+                  placeholder="Search all unwatched titles..."
                   className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-amber-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
                 />
               </div>
@@ -2525,7 +2546,7 @@ function DashboardInner() {
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-                {unwatchedList.map((movie) => {
+                {unwatchedList.slice((unwatchedPage - 1) * PAGE_SIZE, unwatchedPage * PAGE_SIZE).map((movie) => {
                   // When viewing a friend's list, look up the current user's own row for this tmdb_id
                   // so the Watched/Decline buttons correctly reflect personal status
                   const myOwnRow = unwatchedViewMode !== "my-list"
@@ -2559,6 +2580,14 @@ function DashboardInner() {
                 })}
               </div>
             )}
+            <Pagination
+              currentPage={unwatchedPage}
+              totalPages={Math.ceil(unwatchedList.length / PAGE_SIZE)}
+              totalItems={unwatchedList.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={(p) => { setUnwatchedPage(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              accentColor="amber"
+            />
           </div>
         )}
 
@@ -2579,7 +2608,7 @@ function DashboardInner() {
                 <input
                   type="text"
                   value={watchingFilter}
-                  onChange={(e) => setWatchingFilter(e.target.value)}
+                  onChange={(e) => { setWatchingFilter(e.target.value); resetWatchingPage(); }}
                   placeholder="Search watching queue..."
                   className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-indigo-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
                 />
@@ -2637,7 +2666,7 @@ function DashboardInner() {
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-                {watchingList.map((movie) => {
+                {watchingList.slice((watchingPage - 1) * PAGE_SIZE, watchingPage * PAGE_SIZE).map((movie) => {
                   const myOwnRow = watchingViewMode !== "my-list"
                     ? movies.find((m) => m.tmdb_id === movie.tmdb_id && m.user_id === user?.id)
                     : undefined;
@@ -2682,6 +2711,14 @@ function DashboardInner() {
                 })}
               </div>
             )}
+            <Pagination
+              currentPage={watchingPage}
+              totalPages={Math.ceil(watchingList.length / PAGE_SIZE)}
+              totalItems={watchingList.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={(p) => { setWatchingPage(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              accentColor="indigo"
+            />
           </div>
         )}
 
@@ -2702,7 +2739,7 @@ function DashboardInner() {
                 <input
                   type="text"
                   value={upcomingFilter}
-                  onChange={(e) => setUpcomingFilter(e.target.value)}
+                  onChange={(e) => { setUpcomingFilter(e.target.value); resetUpcomingPage(); }}
                   placeholder="Search upcoming queue..."
                   className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-amber-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
                 />
@@ -2866,7 +2903,7 @@ function DashboardInner() {
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-                {upcomingList.map((movie) => {
+                {upcomingList.slice((upcomingPage - 1) * PAGE_SIZE, upcomingPage * PAGE_SIZE).map((movie) => {
                   // When viewing a friend's upcoming list, look up the current user's own row
                   const myOwnRow = upcomingViewMode !== "my-list"
                     ? movies.find((m) => m.tmdb_id === movie.tmdb_id && m.user_id === user?.id)
@@ -2896,6 +2933,14 @@ function DashboardInner() {
                 })}
               </div>
             )}
+            <Pagination
+              currentPage={upcomingPage}
+              totalPages={Math.ceil(upcomingList.length / PAGE_SIZE)}
+              totalItems={upcomingList.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={(p) => { setUpcomingPage(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              accentColor="amber"
+            />
           </div>
         )}
 
@@ -2917,7 +2962,7 @@ function DashboardInner() {
                 <input
                   type="text"
                   value={watchedFilter}
-                  onChange={(e) => setWatchedFilter(e.target.value)}
+                  onChange={(e) => { setWatchedFilter(e.target.value); resetWatchedPage(); }}
                   placeholder="Search watched shelf..."
                   className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-emerald-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
                 />
@@ -3082,7 +3127,7 @@ function DashboardInner() {
             ) : (
               /* High-end Multi-column Grid Layout (up to 6 columns on xl) */
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-                {watchedList.map((movie) => {
+                {watchedList.slice((watchedPage - 1) * PAGE_SIZE, watchedPage * PAGE_SIZE).map((movie) => {
                   const myOwnRow = watchedViewMode !== "my-list"
                     ? movies.find((m) => m.tmdb_id === movie.tmdb_id && m.user_id === user?.id)
                     : undefined;
@@ -3111,6 +3156,14 @@ function DashboardInner() {
                 })}
               </div>
             )}
+            <Pagination
+              currentPage={watchedPage}
+              totalPages={Math.ceil(watchedList.length / PAGE_SIZE)}
+              totalItems={watchedList.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={(p) => { setWatchedPage(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              accentColor="emerald"
+            />
           </div>
         )}
 

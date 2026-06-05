@@ -194,16 +194,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Poll for friends update (instant sync replacement)
-  useEffect(() => {
-    if (!user) return;
+  // Friends are loaded once on mount (inside checkAuth → refreshFriends) and
+  // refreshed on-demand when the user performs a friend action.
+  // No background polling needed.
 
-    const interval = setInterval(() => {
-      refreshFriends();
-    }, 8000);
-
-    return () => clearInterval(interval);
-  }, [user, refreshFriends]);
 
   const signUp = async (
     email: string,
