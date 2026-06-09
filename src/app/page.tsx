@@ -342,6 +342,10 @@ function DashboardInner() {
   const [upcomingGenreFilter, setUpcomingGenreFilter] = useState("");
   const [upcomingCategoryFilter, setUpcomingCategoryFilter] = useState("");
 
+  const [unwatchedYearFilter, setUnwatchedYearFilter] = useState("");
+  const [watchedYearFilter, setWatchedYearFilter] = useState("");
+  const [upcomingYearFilter, setUpcomingYearFilter] = useState("");
+
   // Date range filters
   const [unwatchedDatePreset, setUnwatchedDatePreset] = useState("all");
   const [unwatchedStartDate, setUnwatchedStartDate] = useState("");
@@ -2010,6 +2014,41 @@ function DashboardInner() {
     )
   ).sort();
 
+  // Dynamically extract all unique release years from logged items per user-specific list
+  const unwatchedYears = Array.from(
+    new Set(
+      baseUnwatchedList
+        .filter((m) => {
+          const activeUser = unwatchedViewMode === "my-list" ? myName : unwatchedViewMode;
+          return isMovieOwnedByUser(m, activeUser) && !isMovieWatchedByUser(m, activeUser) && !isMovieWatchingByUser(m, activeUser) && !isMovieDeclinedByUser(m, activeUser);
+        })
+        .map((m) => m.release_year || (m.release_date ? m.release_date.split("-")[0] : null))
+        .filter((y): y is string => !!y && y !== "N/A")
+    )
+  ).sort((a, b) => b.localeCompare(a));
+
+  const watchedYears = Array.from(
+    new Set(
+      baseWatchedList
+        .map((m) => m.release_year || (m.release_date ? m.release_date.split("-")[0] : null))
+        .filter((y): y is string => !!y && y !== "N/A")
+    )
+  ).sort((a, b) => b.localeCompare(a));
+
+  const upcomingYears = Array.from(
+    new Set(
+      baseUpcomingList
+        .filter((m) => {
+          const activeUser = upcomingViewMode === "my-list" ? myName : upcomingViewMode;
+          return isMovieOwnedByUser(m, activeUser) && !isMovieWatchedByUser(m, activeUser) && !isMovieDeclinedByUser(m, activeUser);
+        })
+        .map((m) => m.release_year || (m.release_date ? m.release_date.split("-")[0] : null))
+        .filter((y): y is string => !!y && y !== "N/A")
+    )
+  ).sort((a, b) => b.localeCompare(a));
+
+
+
   // Date filtering helper
   const filterByDateRange = (itemDateStr: string | undefined | null, preset: string, start: string, end: string) => {
     if (preset === "all") return true;
@@ -2057,6 +2096,11 @@ function DashboardInner() {
       if (!unwatchedCategoryFilter) return true;
       return m.category === unwatchedCategoryFilter;
     })
+    .filter((m) => {
+      if (!unwatchedYearFilter) return true;
+      const yr = m.release_year || (m.release_date ? m.release_date.split("-")[0] : null);
+      return yr === unwatchedYearFilter;
+    })
     .filter((m) => filterByDateRange(m.created_at, unwatchedDatePreset, unwatchedStartDate, unwatchedEndDate));
   const baseWatchingList = movies.filter((m) => {
     const activeUser = watchingViewMode === "my-list" ? myName : watchingViewMode;
@@ -2076,6 +2120,11 @@ function DashboardInner() {
       if (!watchedCategoryFilter) return true;
       return m.category === watchedCategoryFilter;
     })
+    .filter((m) => {
+      if (!watchedYearFilter) return true;
+      const yr = m.release_year || (m.release_date ? m.release_date.split("-")[0] : null);
+      return yr === watchedYearFilter;
+    })
     .filter((m) => filterByDateRange(m.watched_at || m.created_at, watchedDatePreset, watchedStartDate, watchedEndDate));
 
   const upcomingList = baseUpcomingList
@@ -2091,6 +2140,11 @@ function DashboardInner() {
     .filter((m) => {
       if (!upcomingCategoryFilter) return true;
       return m.category === upcomingCategoryFilter;
+    })
+    .filter((m) => {
+      if (!upcomingYearFilter) return true;
+      const yr = m.release_year || (m.release_date ? m.release_date.split("-")[0] : null);
+      return yr === upcomingYearFilter;
     })
     .filter((m) => filterByDateRange(m.created_at, upcomingDatePreset, upcomingStartDate, upcomingEndDate))
     .sort((a, b) => {
@@ -2471,6 +2525,39 @@ function DashboardInner() {
                 </div>
               )}
 
+              {/* Release Year pills */}
+              {unwatchedYears.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <span className="text-[9px] font-extrabold text-zinc-550 uppercase tracking-widest mr-2 select-none">Release Year:</span>
+                  <button
+                    onClick={() => { setUnwatchedYearFilter(""); resetUnwatchedPage(); }}
+                    className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
+                      unwatchedYearFilter === ""
+                        ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
+                        : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    All Years {unwatchedYearFilter === "" ? `(${unwatchedList.length})` : ""}
+                  </button>
+                  {unwatchedYears.map((year) => {
+                    const isActive = unwatchedYearFilter === year;
+                    return (
+                      <button
+                        key={year}
+                        onClick={() => { setUnwatchedYearFilter(year); resetUnwatchedPage(); }}
+                        className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
+                          isActive
+                            ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
+                            : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        {year}{isActive ? ` (${unwatchedList.length})` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Date Added filter */}
               <div className="flex flex-wrap gap-1.5 items-center">
                 <span className="text-[9px] font-extrabold text-zinc-550 uppercase tracking-widest mr-2 select-none">Date Added:</span>
@@ -2642,6 +2729,8 @@ function DashboardInner() {
                 );
               })}
             </div>
+
+
 
             {loading ? (
               <div className="py-32 flex flex-col justify-center items-center text-zinc-500 gap-2">
@@ -2826,6 +2915,39 @@ function DashboardInner() {
                         }`}
                       >
                         {genre}{isActive ? ` (${upcomingList.length})` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Release Year pills */}
+              {upcomingYears.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <span className="text-[9px] font-extrabold text-zinc-550 uppercase tracking-widest mr-2 select-none">Release Year:</span>
+                  <button
+                    onClick={() => { setUpcomingYearFilter(""); resetUpcomingPage(); }}
+                    className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
+                      upcomingYearFilter === ""
+                        ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
+                        : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    All Years {upcomingYearFilter === "" ? `(${upcomingList.length})` : ""}
+                  </button>
+                  {upcomingYears.map((year) => {
+                    const isActive = upcomingYearFilter === year;
+                    return (
+                      <button
+                        key={year}
+                        onClick={() => { setUpcomingYearFilter(year); resetUpcomingPage(); }}
+                        className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
+                          isActive
+                            ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
+                            : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        {year}{isActive ? ` (${upcomingList.length})` : ""}
                       </button>
                     );
                   })}
@@ -3049,6 +3171,39 @@ function DashboardInner() {
                         }`}
                       >
                         {genre}{isActive ? ` (${watchedList.length})` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Release Year pills */}
+              {watchedYears.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  <span className="text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest mr-2 select-none">Release Year:</span>
+                  <button
+                    onClick={() => { setWatchedYearFilter(""); resetWatchedPage(); }}
+                    className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
+                      watchedYearFilter === ""
+                        ? "bg-emerald-500 text-zinc-950 font-bold shadow-md shadow-emerald-500/10"
+                        : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    All Years {watchedYearFilter === "" ? `(${watchedList.length})` : ""}
+                  </button>
+                  {watchedYears.map((year) => {
+                    const isActive = watchedYearFilter === year;
+                    return (
+                      <button
+                        key={year}
+                        onClick={() => { setWatchedYearFilter(year); resetWatchedPage(); }}
+                        className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
+                          isActive
+                            ? "bg-emerald-500 text-zinc-950 font-bold shadow-md shadow-emerald-500/10"
+                            : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        {year}{isActive ? ` (${watchedList.length})` : ""}
                       </button>
                     );
                   })}
