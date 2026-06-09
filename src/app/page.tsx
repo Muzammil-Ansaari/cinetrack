@@ -2101,7 +2101,20 @@ function DashboardInner() {
       const yr = m.release_year || (m.release_date ? m.release_date.split("-")[0] : null);
       return yr === unwatchedYearFilter;
     })
-    .filter((m) => filterByDateRange(m.created_at, unwatchedDatePreset, unwatchedStartDate, unwatchedEndDate));
+    .filter((m) => filterByDateRange(m.created_at, unwatchedDatePreset, unwatchedStartDate, unwatchedEndDate))
+    .sort((a, b) => {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const getSortTime = (m: any) => {
+        const createdTime = m.created_at ? new Date(m.created_at).getTime() : 0;
+        if (m.release_date && m.release_date <= todayStr) {
+          const releaseTime = new Date(m.release_date + "T00:00:00").getTime();
+          return Math.max(createdTime, releaseTime);
+        }
+        return createdTime;
+      };
+      return getSortTime(b) - getSortTime(a);
+    });
+
   const baseWatchingList = movies.filter((m) => {
     const activeUser = watchingViewMode === "my-list" ? myName : watchingViewMode;
     return isMovieOwnedByUser(m, activeUser) && isMovieWatchingByUser(m, activeUser) && !isMovieWatchedByUser(m, activeUser) && !isMovieDeclinedByUser(m, activeUser);
