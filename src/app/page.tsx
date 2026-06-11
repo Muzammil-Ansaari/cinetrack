@@ -346,6 +346,10 @@ function DashboardInner() {
   const [watchedYearFilter, setWatchedYearFilter] = useState("");
   const [upcomingYearFilter, setUpcomingYearFilter] = useState("");
 
+  const [unwatchedConnectionFilter, setUnwatchedConnectionFilter] = useState("");
+  const [watchedConnectionFilter, setWatchedConnectionFilter] = useState("");
+  const [upcomingConnectionFilter, setUpcomingConnectionFilter] = useState("");
+
   // Date range filters
   const [unwatchedDatePreset, setUnwatchedDatePreset] = useState("all");
   const [unwatchedStartDate, setUnwatchedStartDate] = useState("");
@@ -503,6 +507,26 @@ function DashboardInner() {
   const [unwatchedViewMode, setUnwatchedViewMode] = useState<string>("my-list");
   const [watchingViewMode, setWatchingViewMode] = useState<string>("my-list");
   const [upcomingViewMode, setUpcomingViewMode] = useState<string>("my-list");
+
+  // Reset connection filters and pagination when view mode changes
+  useEffect(() => {
+    setUnwatchedConnectionFilter("");
+    setUnwatchedPage(1);
+  }, [unwatchedViewMode]);
+
+  useEffect(() => {
+    setWatchedConnectionFilter("");
+    setWatchedPage(1);
+  }, [watchedViewMode]);
+
+  useEffect(() => {
+    setWatchingPage(1);
+  }, [watchingViewMode]);
+
+  useEffect(() => {
+    setUpcomingConnectionFilter("");
+    setUpcomingPage(1);
+  }, [upcomingViewMode]);
 
 
 
@@ -2061,6 +2085,12 @@ function DashboardInner() {
     if (preset === "today") {
       return itemDateVal === today;
     }
+    if (preset === "yesterday") {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split("T")[0];
+      return itemDateVal === yesterdayStr;
+    }
     if (preset === "7days") {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -2102,6 +2132,13 @@ function DashboardInner() {
       return yr === unwatchedYearFilter;
     })
     .filter((m) => filterByDateRange(m.created_at, unwatchedDatePreset, unwatchedStartDate, unwatchedEndDate))
+    .filter((m) => {
+      if (unwatchedViewMode === "my-list" || !unwatchedConnectionFilter) return true;
+      const inMyList = movies.some((myM) => myM.tmdb_id === m.tmdb_id && isMovieOwnedByUser(myM, myName));
+      if (unwatchedConnectionFilter === "in-my-list") return inMyList;
+      if (unwatchedConnectionFilter === "not-in-my-list") return !inMyList;
+      return true;
+    })
     .sort((a, b) => {
       const todayStr = new Date().toISOString().split("T")[0];
       const getSortTime = (m: any) => {
@@ -2138,7 +2175,14 @@ function DashboardInner() {
       const yr = m.release_year || (m.release_date ? m.release_date.split("-")[0] : null);
       return yr === watchedYearFilter;
     })
-    .filter((m) => filterByDateRange(m.watched_at || m.created_at, watchedDatePreset, watchedStartDate, watchedEndDate));
+    .filter((m) => filterByDateRange(m.watched_at || m.created_at, watchedDatePreset, watchedStartDate, watchedEndDate))
+    .filter((m) => {
+      if (watchedViewMode === "my-list" || !watchedConnectionFilter) return true;
+      const inMyList = movies.some((myM) => myM.tmdb_id === m.tmdb_id && isMovieOwnedByUser(myM, myName));
+      if (watchedConnectionFilter === "in-my-list") return inMyList;
+      if (watchedConnectionFilter === "not-in-my-list") return !inMyList;
+      return true;
+    });
 
   const upcomingList = baseUpcomingList
     .filter((m) => {
@@ -2160,6 +2204,13 @@ function DashboardInner() {
       return yr === upcomingYearFilter;
     })
     .filter((m) => filterByDateRange(m.created_at, upcomingDatePreset, upcomingStartDate, upcomingEndDate))
+    .filter((m) => {
+      if (upcomingViewMode === "my-list" || !upcomingConnectionFilter) return true;
+      const inMyList = movies.some((myM) => myM.tmdb_id === m.tmdb_id && isMovieOwnedByUser(myM, myName));
+      if (upcomingConnectionFilter === "in-my-list") return inMyList;
+      if (upcomingConnectionFilter === "not-in-my-list") return !inMyList;
+      return true;
+    })
     .sort((a, b) => {
       const dateA = a.release_date || "";
       const dateB = b.release_date || "";
@@ -2478,6 +2529,32 @@ function DashboardInner() {
 
             {/* Premium modern clickable capsule pill chips */}
             <div className="flex flex-col gap-3.5 py-2.5 border-b border-zinc-900 pb-5 select-none">
+              {/* Connection to My List pills (only when viewing friend's list) */}
+              {unwatchedViewMode !== "my-list" && (
+                <div className="flex flex-wrap gap-1.5 items-center pb-2.5 border-b border-zinc-900/40">
+                  <span className="text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest mr-2 select-none">My List Status:</span>
+                  {[
+                    { label: "All", value: "" },
+                    { label: "In My List", value: "in-my-list" },
+                    { label: "Not in My List", value: "not-in-my-list" }
+                  ].map((conn) => {
+                    const isActiveConn = unwatchedConnectionFilter === conn.value;
+                    return (
+                      <button
+                        key={conn.label}
+                        onClick={() => { setUnwatchedConnectionFilter(conn.value); resetUnwatchedPage(); }}
+                        className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
+                          isActiveConn
+                            ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
+                            : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        {conn.label}{isActiveConn ? ` (${unwatchedList.length})` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {/* Format pills */}
               <div className="flex flex-wrap gap-1.5 items-center">
                 <span className="text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest mr-2 select-none">Format:</span>
@@ -2577,6 +2654,7 @@ function DashboardInner() {
                 {[
                   { label: "All Time", value: "all" },
                   { label: "Today", value: "today" },
+                  { label: "Yesterday", value: "yesterday" },
                   { label: "Last 7 Days", value: "7days" },
                   { label: "Last 30 Days", value: "30days" },
                   { label: "Custom Range", value: "custom" }
@@ -2743,8 +2821,6 @@ function DashboardInner() {
               })}
             </div>
 
-
-
             {loading ? (
               <div className="py-32 flex flex-col justify-center items-center text-zinc-500 gap-2">
                 <RefreshCw className="w-6 h-6 animate-spin text-zinc-600" />
@@ -2874,6 +2950,32 @@ function DashboardInner() {
 
             {/* Premium modern clickable capsule pill chips */}
             <div className="flex flex-col gap-3.5 py-2.5 border-b border-zinc-900 pb-5 select-none">
+              {/* Connection to My List pills (only when viewing friend's list) */}
+              {upcomingViewMode !== "my-list" && (
+                <div className="flex flex-wrap gap-1.5 items-center pb-2.5 border-b border-zinc-900/40">
+                  <span className="text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest mr-2 select-none">My List Status:</span>
+                  {[
+                    { label: "All", value: "" },
+                    { label: "In My List", value: "in-my-list" },
+                    { label: "Not in My List", value: "not-in-my-list" }
+                  ].map((conn) => {
+                    const isActiveConn = upcomingConnectionFilter === conn.value;
+                    return (
+                      <button
+                        key={conn.label}
+                        onClick={() => { setUpcomingConnectionFilter(conn.value); resetUpcomingPage(); }}
+                        className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
+                          isActiveConn
+                            ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
+                            : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        {conn.label}{isActiveConn ? ` (${upcomingList.length})` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {/* Format pills */}
               <div className="flex flex-wrap gap-1.5 items-center">
                 <span className="text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest mr-2 select-none">Format:</span>
@@ -2973,6 +3075,7 @@ function DashboardInner() {
                 {[
                   { label: "All Time", value: "all" },
                   { label: "Today", value: "today" },
+                  { label: "Yesterday", value: "yesterday" },
                   { label: "Last 7 Days", value: "7days" },
                   { label: "Last 30 Days", value: "30days" },
                   { label: "Custom Range", value: "custom" }
@@ -3130,6 +3233,32 @@ function DashboardInner() {
 
             {/* Premium modern clickable capsule pill chips */}
             <div className="flex flex-col gap-3.5 py-2.5 border-b border-zinc-900 pb-5 select-none">
+              {/* Connection to My List pills (only when viewing friend's list) */}
+              {watchedViewMode !== "my-list" && (
+                <div className="flex flex-wrap gap-1.5 items-center pb-2.5 border-b border-zinc-900/40">
+                  <span className="text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest mr-2 select-none">My List Status:</span>
+                  {[
+                    { label: "All", value: "" },
+                    { label: "In My List", value: "in-my-list" },
+                    { label: "Not in My List", value: "not-in-my-list" }
+                  ].map((conn) => {
+                    const isActiveConn = watchedConnectionFilter === conn.value;
+                    return (
+                      <button
+                        key={conn.label}
+                        onClick={() => { setWatchedConnectionFilter(conn.value); resetWatchedPage(); }}
+                        className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
+                          isActiveConn
+                            ? "bg-emerald-500 text-zinc-950 font-bold shadow-md shadow-emerald-500/10"
+                            : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        {conn.label}{isActiveConn ? ` (${watchedList.length})` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {/* Format pills */}
               <div className="flex flex-wrap gap-1.5 items-center">
                 <span className="text-[9px] font-extrabold text-zinc-500 uppercase tracking-widest mr-2 select-none">Format:</span>
@@ -3229,6 +3358,7 @@ function DashboardInner() {
                 {[
                   { label: "All Time", value: "all" },
                   { label: "Today", value: "today" },
+                  { label: "Yesterday", value: "yesterday" },
                   { label: "Last 7 Days", value: "7days" },
                   { label: "Last 30 Days", value: "30days" },
                   { label: "Custom Range", value: "custom" }
