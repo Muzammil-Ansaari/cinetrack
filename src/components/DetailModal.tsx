@@ -372,6 +372,8 @@ export default function DetailModal({ isOpen, onClose, tmdbId, category }: Detai
                   </div>
                 )}
 
+
+
                 {/* Renewal/Upcoming Season Status Kicker */}
                 {renderRenewalStatus()}
 

@@ -61,9 +61,11 @@ export async function GET(request: NextRequest) {
         $or: [
           { release_date: { $exists: false } },
           { release_date: null },
-          { release_date: "" }
+          { release_date: "" },
+          { cast: { $exists: false } },
+          { cast: null }
         ]
-      }).toArray();
+      }).limit(20).toArray();
 
       const TMDB_API_KEY = process.env.TMDB_API_KEY;
       if (!TMDB_API_KEY) {
@@ -72,25 +74,33 @@ export async function GET(request: NextRequest) {
 
       const updated = [];
       for (const movie of movies) {
-        if (!movie.release_date) {
-          try {
-            const isTv = movie.category === "TV Show" || movie.category === "Anime";
-            const mediaType = isTv ? "tv" : "movie";
-            const res = await fetch(`https://api.themoviedb.org/3/${mediaType}/${movie.tmdb_id}?api_key=${TMDB_API_KEY}&language=en-US`);
-            if (res.ok) {
-              const data = await res.json();
-              const releaseDate = data.release_date || data.first_air_date || null;
-              if (releaseDate) {
-                await collection.updateOne(
-                  { _id: movie._id },
-                  { $set: { release_date: releaseDate } }
-                );
-                updated.push({ title: movie.title, release_date: releaseDate });
-              }
+        try {
+          const isTv = movie.category === "TV Show" || movie.category === "Anime";
+          const mediaType = isTv ? "tv" : "movie";
+          const res = await fetch(`https://api.themoviedb.org/3/${mediaType}/${movie.tmdb_id}?api_key=${TMDB_API_KEY}&language=en-US&append_to_response=credits`);
+          if (res.ok) {
+            const data = await res.json();
+            const releaseDate = data.release_date || data.first_air_date || null;
+            const castList = data.credits?.cast?.slice(0, 15).map((c: any) => c.name).join(", ") || null;
+            
+            const updateDoc: any = {};
+            if (releaseDate && !movie.release_date) {
+              updateDoc.release_date = releaseDate;
             }
-          } catch (err: any) {
-            console.error(`Failed migrating release_date for ${movie.title}:`, err);
+            if (castList && !movie.cast) {
+              updateDoc.cast = castList;
+            }
+
+            if (Object.keys(updateDoc).length > 0) {
+              await collection.updateOne(
+                { _id: movie._id },
+                { $set: updateDoc }
+              );
+              updated.push({ title: movie.title, ...updateDoc });
+            }
           }
+        } catch (err: any) {
+          console.error(`Failed migrating details/cast for ${movie.title}:`, err);
         }
       }
       return NextResponse.json({ success: true, migrated: updated });

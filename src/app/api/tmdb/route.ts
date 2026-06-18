@@ -157,7 +157,7 @@ export async function GET(request: NextRequest) {
       const includeEpisodes = searchParams.get("includeEpisodes") === "true";
       
       const response = await fetchWithTimeout(
-        `https://api.tmdb.org/3/${isTv ? "tv" : "movie"}/${movieId}?api_key=${TMDB_API_KEY}&language=en-US&append_to_response=videos`
+        `https://api.tmdb.org/3/${isTv ? "tv" : "movie"}/${movieId}?api_key=${TMDB_API_KEY}&language=en-US&append_to_response=videos,credits`
       );
       if (!response.ok) throw new Error(`TMDB ${mediaType} details fetch failed`);
       const data = await response.json();

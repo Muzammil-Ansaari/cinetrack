@@ -333,6 +333,8 @@ function DashboardInner() {
   const [watchingFilter, setWatchingFilter] = useState("");
   const [watchedFilter, setWatchedFilter] = useState("");
   const [declinedFilter, setDeclinedFilter] = useState("");
+
+
   const [unwatchedGenreFilter, setUnwatchedGenreFilter] = useState("");
   const [watchedGenreFilter, setWatchedGenreFilter] = useState("");
   const [unwatchedCategoryFilter, setUnwatchedCategoryFilter] = useState("");
@@ -345,6 +347,8 @@ function DashboardInner() {
   const [unwatchedYearFilter, setUnwatchedYearFilter] = useState("");
   const [watchedYearFilter, setWatchedYearFilter] = useState("");
   const [upcomingYearFilter, setUpcomingYearFilter] = useState("");
+
+  const [unwatchedRatingFilter, setUnwatchedRatingFilter] = useState("");
 
   const [unwatchedConnectionFilter, setUnwatchedConnectionFilter] = useState("");
   const [watchedConnectionFilter, setWatchedConnectionFilter] = useState("");
@@ -945,6 +949,7 @@ function DashboardInner() {
       let global_rating: number | null = tmdbMovie.vote_average || null;
       let genres: string | null = null;
       let releaseDate = tmdbMovie.release_date || null;
+      let cast: string | null = null;
 
       try {
         console.log("CineTrack [Diagnostics]: Fetching details from TMDB proxy...");
@@ -989,6 +994,9 @@ function DashboardInner() {
           if (detailsData.release_date || detailsData.first_air_date) {
             releaseDate = detailsData.release_date || detailsData.first_air_date;
           }
+          if (detailsData.credits?.cast) {
+            cast = detailsData.credits.cast.slice(0, 15).map((c: any) => c.name).join(", ");
+          }
         } else {
           console.warn("CineTrack [Diagnostics]: TMDB proxy responded with non-200 status:", detailsRes.status);
         }
@@ -1017,6 +1025,7 @@ function DashboardInner() {
         category,
         global_rating,
         genres,
+        cast,
         watched_by: watched ? myName : "",
         watched_by_ids: watched ? (user?.id || "") : "",
         watching_by: watching ? myName : "",
@@ -1922,6 +1931,7 @@ function DashboardInner() {
         category: movie.category,
         global_rating: movie.global_rating,
         genres: movie.genres,
+        cast: movie.cast || null,
         watched_by: "",
         watched_by_ids: "",
         watching_by: "",
@@ -2117,7 +2127,10 @@ function DashboardInner() {
       const activeUser = unwatchedViewMode === "my-list" ? myName : unwatchedViewMode;
       return isMovieOwnedByUser(m, activeUser) && !isMovieWatchedByUser(m, activeUser) && !isMovieWatchingByUser(m, activeUser) && !isMovieDeclinedByUser(m, activeUser);
     })
-    .filter((m) => m.title.toLowerCase().includes(unwatchedFilter.trim().toLowerCase()))
+    .filter((m) => {
+      const query = unwatchedFilter.trim().toLowerCase();
+      return query ? m.title.toLowerCase().includes(query) : true;
+    })
     .filter((m) => {
       if (!unwatchedGenreFilter) return true;
       return m.genres && m.genres.split(", ").includes(unwatchedGenreFilter);
@@ -2130,6 +2143,13 @@ function DashboardInner() {
       if (!unwatchedYearFilter) return true;
       const yr = m.release_year || (m.release_date ? m.release_date.split("-")[0] : null);
       return yr === unwatchedYearFilter;
+    })
+    .filter((m) => {
+      if (!unwatchedRatingFilter) return true;
+      const rating = m.global_rating;
+      if (rating === null || rating === undefined) return false;
+      if (unwatchedRatingFilter === "under6") return rating < 6;
+      return rating >= parseFloat(unwatchedRatingFilter);
     })
     .filter((m) => filterByDateRange(m.created_at, unwatchedDatePreset, unwatchedStartDate, unwatchedEndDate))
     .filter((m) => {
@@ -2158,10 +2178,16 @@ function DashboardInner() {
   });
 
   const watchingList = baseWatchingList
-    .filter((m) => m.title.toLowerCase().includes(watchingFilter.trim().toLowerCase()));
+    .filter((m) => {
+      const query = watchingFilter.trim().toLowerCase();
+      return query ? m.title.toLowerCase().includes(query) : true;
+    });
 
   const watchedList = baseWatchedList
-    .filter((m) => m.title.toLowerCase().includes(watchedFilter.trim().toLowerCase()))
+    .filter((m) => {
+      const query = watchedFilter.trim().toLowerCase();
+      return query ? m.title.toLowerCase().includes(query) : true;
+    })
     .filter((m) => {
       if (!watchedGenreFilter) return true;
       return m.genres && m.genres.split(", ").includes(watchedGenreFilter);
@@ -2189,7 +2215,10 @@ function DashboardInner() {
       const activeUser = upcomingViewMode === "my-list" ? myName : upcomingViewMode;
       return isMovieOwnedByUser(m, activeUser) && !isMovieWatchedByUser(m, activeUser) && !isMovieDeclinedByUser(m, activeUser);
     })
-    .filter((m) => m.title.toLowerCase().includes(upcomingFilter.trim().toLowerCase()))
+    .filter((m) => {
+      const query = upcomingFilter.trim().toLowerCase();
+      return query ? m.title.toLowerCase().includes(query) : true;
+    })
     .filter((m) => {
       if (!upcomingGenreFilter) return true;
       return m.genres && m.genres.split(", ").includes(upcomingGenreFilter);
@@ -2221,7 +2250,10 @@ function DashboardInner() {
     });
 
   const declinedList = baseDeclinedList
-    .filter((m) => m.title.toLowerCase().includes(declinedFilter.trim().toLowerCase()));
+    .filter((m) => {
+      const query = declinedFilter.trim().toLowerCase();
+      return query ? m.title.toLowerCase().includes(query) : true;
+    });
 
   const totalWatchedRuntime = baseMyWatchedList.reduce((acc, curr) => acc + (curr.runtime || 0), 0);
 
@@ -2491,15 +2523,17 @@ function DashboardInner() {
               </div>
 
               {/* Local Search within Unwatched list */}
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-                <input
-                  type="text"
-                  value={unwatchedFilter}
-                  onChange={(e) => { setUnwatchedFilter(e.target.value); resetUnwatchedPage(); }}
-                  placeholder="Search all unwatched titles..."
-                  className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-amber-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
-                />
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                  <input
+                    type="text"
+                    value={unwatchedFilter}
+                    onChange={(e) => { setUnwatchedFilter(e.target.value); resetUnwatchedPage(); }}
+                    placeholder="Search all unwatched titles..."
+                    className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-amber-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
+                  />
+                </div>
               </div>
             </div>
 
@@ -2648,6 +2682,33 @@ function DashboardInner() {
                 </div>
               )}
 
+              {/* TMDB Rating pills */}
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-[9px] font-extrabold text-zinc-550 uppercase tracking-widest mr-2 select-none">TMDB Rating:</span>
+                {[
+                  { label: "All Ratings", value: "" },
+                  { label: "8.0+ ⭐", value: "8" },
+                  { label: "7.0+ ⭐", value: "7" },
+                  { label: "6.0+ ⭐", value: "6" },
+                  { label: "Under 6.0", value: "under6" }
+                ].map((ratingOption) => {
+                  const isActive = unwatchedRatingFilter === ratingOption.value;
+                  return (
+                    <button
+                      key={ratingOption.label}
+                      onClick={() => { setUnwatchedRatingFilter(ratingOption.value); resetUnwatchedPage(); }}
+                      className={`px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider rounded-full cursor-pointer transition-all active:scale-95 duration-250 ${
+                        isActive
+                          ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/10"
+                          : "bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                      }`}
+                    >
+                      {ratingOption.label}{isActive ? ` (${unwatchedList.length})` : ""}
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* Date Added filter */}
               <div className="flex flex-wrap gap-1.5 items-center">
                 <span className="text-[9px] font-extrabold text-zinc-550 uppercase tracking-widest mr-2 select-none">Date Added:</span>
@@ -2781,15 +2842,17 @@ function DashboardInner() {
               </div>
 
               {/* Local Search within Watching list */}
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-                <input
-                  type="text"
-                  value={watchingFilter}
-                  onChange={(e) => { setWatchingFilter(e.target.value); resetWatchingPage(); }}
-                  placeholder="Search watching queue..."
-                  className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-indigo-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
-                />
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                  <input
+                    type="text"
+                    value={watchingFilter}
+                    onChange={(e) => { setWatchingFilter(e.target.value); resetWatchingPage(); }}
+                    placeholder="Search watching queue..."
+                    className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-indigo-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
+                  />
+                </div>
               </div>
             </div>
 
@@ -2912,15 +2975,17 @@ function DashboardInner() {
               </div>
 
               {/* Local Search within Upcoming list */}
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-                <input
-                  type="text"
-                  value={upcomingFilter}
-                  onChange={(e) => { setUpcomingFilter(e.target.value); resetUpcomingPage(); }}
-                  placeholder="Search upcoming queue..."
-                  className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-amber-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
-                />
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                  <input
+                    type="text"
+                    value={upcomingFilter}
+                    onChange={(e) => { setUpcomingFilter(e.target.value); resetUpcomingPage(); }}
+                    placeholder="Search upcoming queue..."
+                    className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-amber-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
+                  />
+                </div>
               </div>
             </div>
 
@@ -3195,15 +3260,17 @@ function DashboardInner() {
               </div>
 
               {/* Local Search within Watched list */}
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-                <input
-                  type="text"
-                  value={watchedFilter}
-                  onChange={(e) => { setWatchedFilter(e.target.value); resetWatchedPage(); }}
-                  placeholder="Search watched shelf..."
-                  className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-emerald-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
-                />
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                  <input
+                    type="text"
+                    value={watchedFilter}
+                    onChange={(e) => { setWatchedFilter(e.target.value); resetWatchedPage(); }}
+                    placeholder="Search watched shelf..."
+                    className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-emerald-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
+                  />
+                </div>
               </div>
             </div>
 
@@ -3478,15 +3545,17 @@ function DashboardInner() {
               </div>
 
               {/* Local Search within Declined list */}
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
-                <input
-                  type="text"
-                  value={declinedFilter}
-                  onChange={(e) => setDeclinedFilter(e.target.value)}
-                  placeholder="Search not interested..."
-                  className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-red-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
-                />
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+                  <input
+                    type="text"
+                    value={declinedFilter}
+                    onChange={(e) => setDeclinedFilter(e.target.value)}
+                    placeholder="Search not interested..."
+                    className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 focus:border-red-500 rounded-xl text-zinc-200 text-xs font-semibold focus:outline-none transition-all placeholder:text-zinc-500"
+                  />
+                </div>
               </div>
             </div>
 

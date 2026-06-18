@@ -17,6 +17,7 @@ export interface Movie {
   category: string; // Movie, TV Show, Anime, Animated Movie
   global_rating: number | null; // TMDB average rating (e.g., 8.7)
   genres: string | null; // Comma-separated list of genres (e.g., "Crime, Drama")
+  cast?: string | null; // Comma-separated list of actors/cast members
   watched_by?: string;
   declined_by?: string;
   ratings_json?: string;
