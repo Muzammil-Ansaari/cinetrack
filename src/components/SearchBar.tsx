@@ -8,9 +8,10 @@ interface SearchBarProps {
   onAddMovie: (tmdbMovie: TMDBMovie, watched: boolean, watching?: boolean) => Promise<void>;
   isTracked: (tmdbId: string) => boolean;
   onSearchSubmit?: (query: string) => void;
+  onOpenDetail?: (id: string, category: string) => void;
 }
 
-export default function SearchBar({ onAddMovie, isTracked, onSearchSubmit }: SearchBarProps) {
+export default function SearchBar({ onAddMovie, isTracked, onSearchSubmit, onOpenDetail }: SearchBarProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TMDBMovie[]>([]);
   const [loading, setLoading] = useState(false);
@@ -182,8 +183,11 @@ export default function SearchBar({ onAddMovie, isTracked, onSearchSubmit }: Sea
                   key={movie.id}
                   className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 hover:bg-zinc-900/60 transition-colors"
                 >
-                  {/* First Row: Poster + Info */}
-                  <div className="flex items-start gap-3 sm:gap-4 flex-grow min-w-0">
+                  {/* First Row: Poster + Info (Clickable to open details modal) */}
+                  <div 
+                    onClick={() => onOpenDetail?.(movie.id.toString(), movie.category || "Movie")}
+                    className="flex items-start gap-3 sm:gap-4 flex-grow min-w-0 cursor-pointer group/item hover:opacity-85 transition-opacity"
+                  >
                     {/* Poster Thumbnail */}
                     <div className="w-9 h-12 rounded bg-zinc-900 overflow-hidden flex-shrink-0 border border-zinc-800 shadow-sm select-none relative flex items-center justify-center">
                       {posterUrl ? (
@@ -215,7 +219,7 @@ export default function SearchBar({ onAddMovie, isTracked, onSearchSubmit }: Sea
 
                     {/* Movie Info */}
                     <div className="flex-grow min-w-0 select-none">
-                      <h4 className="text-sm font-bold text-zinc-100 truncate">{movie.title}</h4>
+                      <h4 className="text-sm font-bold text-zinc-100 truncate group-hover/item:text-indigo-400 transition-colors">{movie.title}</h4>
                       <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-zinc-500 font-medium mt-0.5">
                         {movie.category && (
                           <span className={`px-1 rounded text-[7px] font-extrabold uppercase ${

@@ -97,6 +97,23 @@ export default function DetailModal({ isOpen, onClose, tmdbId, category }: Detai
 
   if (!isOpen) return null;
 
+  const isCustomGradient = data?.poster_path?.startsWith("custom-gradient:") ?? false;
+  const gradientClass = isCustomGradient ? data?.poster_path?.split(":")[1] ?? "" : "";
+
+  const getGradientBg = (colorName: string) => {
+    switch (colorName) {
+      case "emerald-teal":
+        return "bg-gradient-to-br from-emerald-600 via-teal-700 to-cyan-600";
+      case "midnight-aurora":
+        return "bg-gradient-to-br from-cyan-600 via-indigo-700 to-violet-650";
+      case "volcanic-amber":
+        return "bg-gradient-to-br from-orange-500 via-red-600 to-pink-700";
+      case "indigo-pink":
+      default:
+        return "bg-gradient-to-br from-indigo-500 via-purple-650 to-pink-500";
+    }
+  };
+
   const toggleEpisodeExpand = (epId: number) => {
     setExpandedEpisodes((prev) => ({ ...prev, [epId]: !prev[epId] }));
   };
@@ -308,7 +325,15 @@ export default function DetailModal({ isOpen, onClose, tmdbId, category }: Detai
               {/* Left Column: Poster Panel */}
               <div className="w-[120px] md:w-[170px] flex-shrink-0 select-none mx-auto md:mx-0">
                 <div className="w-full aspect-[2/3] rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 shadow-2xl flex items-center justify-center relative">
-                  {data.poster_path ? (
+                  {isCustomGradient ? (
+                    <div className={`w-full h-full flex flex-col justify-between items-center text-center p-4 text-white select-none ${getGradientBg(gradientClass)}`}>
+                      <span className="text-[8px] font-black uppercase tracking-widest text-white/60 mt-2">Custom Entry</span>
+                      <Film className="w-8 h-8 text-white/80 my-2" />
+                      <span className="text-xs font-black text-white leading-tight line-clamp-4 select-none mb-2">
+                        {data.title}
+                      </span>
+                    </div>
+                  ) : data.poster_path ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={data.poster_path}

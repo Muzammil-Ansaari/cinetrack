@@ -28,6 +28,7 @@ export default function CustomMovieModal({ isOpen, onClose, onSave }: CustomMovi
   const [synopsis, setSynopsis] = useState("");
   const [genres, setGenres] = useState("");
   const [gradientPreset, setGradientPreset] = useState("indigo-pink");
+  const [customPosterUrl, setCustomPosterUrl] = useState("");
   const [watched, setWatched] = useState(false);
   const [seasons, setSeasons] = useState("1");
   const [episodes, setEpisodes] = useState("12");
@@ -49,7 +50,7 @@ export default function CustomMovieModal({ isOpen, onClose, onSave }: CustomMovi
         runtime: parseInt(runtime) || 120,
         synopsis: synopsis.trim(),
         genres: genres.trim() || "Custom",
-        poster_path: `custom-gradient:${gradientPreset}`,
+        poster_path: customPosterUrl.trim() ? customPosterUrl.trim() : `custom-gradient:${gradientPreset}`,
         watched,
         seasons: isTv ? parseInt(seasons) || 1 : undefined,
         episodes: isTv ? parseInt(episodes) || 12 : undefined,
@@ -63,6 +64,7 @@ export default function CustomMovieModal({ isOpen, onClose, onSave }: CustomMovi
       setSynopsis("");
       setGenres("");
       setGradientPreset("indigo-pink");
+      setCustomPosterUrl("");
       setWatched(false);
       setSeasons("1");
       setEpisodes("12");
@@ -248,15 +250,46 @@ export default function CustomMovieModal({ isOpen, onClose, onSave }: CustomMovi
             />
           </div>
 
+          {/* Custom Poster Image URL (Optional) */}
+          <div className="space-y-1.5">
+            <label className="font-extrabold text-zinc-350 tracking-wider uppercase text-[9px] flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5" /> Custom Poster Image URL (Optional)
+            </label>
+            <input
+              type="url"
+              value={customPosterUrl}
+              onChange={(e) => setCustomPosterUrl(e.target.value)}
+              placeholder="https://example.com/poster-image.jpg"
+              className="w-full px-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-indigo-500/80 text-xs"
+            />
+            <p className="text-[9px] text-zinc-550">Provide a direct link to an image. If left blank, the Theme Color Preset will be used.</p>
+          </div>
+
           {/* Presets Card Preview */}
           <div className="bg-zinc-950/45 p-3 rounded-2xl border border-zinc-800/60 flex gap-4 items-center">
-            <div className="w-[48px] h-[68px] rounded-lg overflow-hidden border border-zinc-800 shadow-inner flex-shrink-0 flex items-center justify-center relative">
-              <div className={`absolute inset-0 ${getGradientPreview(gradientPreset)}`} />
-              <Film className="w-4 h-4 text-white/80 absolute" />
+            <div className="w-[48px] h-[68px] rounded-lg overflow-hidden border border-zinc-800 shadow-inner flex-shrink-0 flex items-center justify-center relative bg-zinc-950">
+              {customPosterUrl.trim() ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={customPosterUrl.trim()}
+                  alt="Preview"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <>
+                  <div className={`absolute inset-0 ${getGradientPreview(gradientPreset)}`} />
+                  <Film className="w-4 h-4 text-white/80 absolute" />
+                </>
+              )}
             </div>
             <div>
               <h4 className="font-bold text-zinc-300">Poster Card Accent Preview</h4>
-              <p className="text-[10px] text-zinc-500 mt-0.5">Renders as a gorgeous custom CSS gradient on watchlists!</p>
+              <p className="text-[10px] text-zinc-500 mt-0.5">
+                {customPosterUrl.trim() ? "Renders your custom image on watchlists!" : "Renders as a gorgeous custom CSS gradient on watchlists!"}
+              </p>
             </div>
           </div>
 

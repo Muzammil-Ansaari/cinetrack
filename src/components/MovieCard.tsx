@@ -100,7 +100,11 @@ export default function MovieCard({
   };
 
   const posterUrl = movie.poster_path && !isCustomGradient
-    ? `https://image.tmdb.org/t/p/w185${movie.poster_path}`
+    ? (movie.poster_path.startsWith("http://") || 
+       movie.poster_path.startsWith("https://") || 
+       movie.poster_path.startsWith("data:image/")
+        ? movie.poster_path
+        : `https://image.tmdb.org/t/p/w185${movie.poster_path}`)
     : "";
 
   const formatRuntime = (mins: number) => {

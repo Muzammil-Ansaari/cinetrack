@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import clientPromise from "@/lib/mongodb";
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 
@@ -62,6 +63,37 @@ export async function GET(request: NextRequest) {
 
   if (!id) {
     return NextResponse.json({ error: "Missing required parameter: id" }, { status: 400 });
+  }
+
+  // Support for custom entries in Details Modal
+  if (id.startsWith("custom-")) {
+    try {
+      const client = await clientPromise;
+      const db = client.db("cinetrack");
+      const movie = await db.collection("movies").findOne({ tmdb_id: id });
+
+      if (!movie) {
+        return NextResponse.json({ error: "Custom movie not found in database" }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        title: movie.title,
+        overview: movie.synopsis || "",
+        backdrop_path: null,
+        poster_path: movie.poster_path || null,
+        release_year: movie.release_year || "N/A",
+        release_date: movie.release_date || null,
+        runtime: movie.runtime || 120,
+        global_rating: null,
+        genres: movie.genres || "",
+        trailerKey: null,
+        seasonsWithEpisodes: null,
+        source: "custom",
+      });
+    } catch (e: any) {
+      console.error("Failed to fetch custom movie details:", e);
+      return NextResponse.json({ error: "Failed to retrieve custom movie details" }, { status: 500 });
+    }
   }
 
   try {

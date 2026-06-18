@@ -2458,6 +2458,7 @@ function DashboardInner() {
               onAddMovie={handleAddMovie} 
               isTracked={isTracked} 
               onSearchSubmit={(q) => handleSearchSubmit(q, 1)}
+              onOpenDetail={openDetailModal}
             />
           </div>
           <button
