@@ -233,7 +233,11 @@ export default function BulkImportModal({
     if (failedToSave.length > 0) {
       const updatedHistory = [...failedToSave, ...failedHistory].slice(0, 100);
       setFailedHistory(updatedHistory);
-      localStorage.setItem("cinetrack_failed_imports", JSON.stringify(updatedHistory));
+      try {
+        localStorage.setItem("cinetrack_failed_imports", JSON.stringify(updatedHistory));
+      } catch (e) {
+        console.warn("CineTrack: Failed to save failed imports to localStorage (quota exceeded)", e);
+      }
     }
 
     if (toImport.length === 0) {

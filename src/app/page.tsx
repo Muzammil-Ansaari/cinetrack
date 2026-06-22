@@ -619,7 +619,11 @@ function DashboardInner() {
       });
 
       setMovies(normalizedMovies);
-      localStorage.setItem("cinetrack_movies_cache", JSON.stringify(normalizedMovies));
+      try {
+        localStorage.setItem("cinetrack_movies_cache", JSON.stringify(normalizedMovies));
+      } catch (cacheError) {
+        console.warn("CineTrack: Failed to cache movies to localStorage (quota exceeded)", cacheError);
+      }
     } catch (e) {
       console.error("CineTrack [MongoDB GET Error]:", e);
     }
@@ -733,7 +737,15 @@ function DashboardInner() {
   // Save changes helper (synces back locally if Supabase is disabled)
   const saveMoviesState = async (newMovies: Movie[]) => {
     setMovies(newMovies);
-    localStorage.setItem(`cinetrack_movies_${user?.id || "local"}`, JSON.stringify(newMovies));
+    try {
+      if (user) {
+        localStorage.setItem("cinetrack_movies_cache", JSON.stringify(newMovies));
+      } else {
+        localStorage.setItem("cinetrack_movies_local", JSON.stringify(newMovies));
+      }
+    } catch (e) {
+      console.warn("CineTrack: Failed to save movies to localStorage (quota exceeded)", e);
+    }
   };
 
   // Add a new activity log

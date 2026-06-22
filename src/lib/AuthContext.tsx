@@ -44,6 +44,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const safeSetItem = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    console.warn(`CineTrack: Failed to save ${key} to localStorage`, e);
+  }
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -92,8 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: data.user.role
           };
           setProfile(userProfile);
-          localStorage.setItem("cinetrack_cached_user", JSON.stringify(data.user));
-          localStorage.setItem("cinetrack_cached_profile", JSON.stringify(userProfile));
+          safeSetItem("cinetrack_cached_user", JSON.stringify(data.user));
+          safeSetItem("cinetrack_cached_profile", JSON.stringify(userProfile));
         } else {
           setUser(null);
           setProfile(null);
@@ -119,19 +127,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Accepted friendships
         const accepted = allFriendships.filter(f => f.status === "accepted");
         setFriendships(accepted);
-        localStorage.setItem("cinetrack_cached_friendships", JSON.stringify(accepted));
+        safeSetItem("cinetrack_cached_friendships", JSON.stringify(accepted));
 
         const friendProfiles = accepted
           .map((f) => f.requester_id === targetUserId ? f.addressee : f.requester)
           .filter((p): p is Profile => p !== undefined);
 
         setFriends(friendProfiles);
-        localStorage.setItem("cinetrack_cached_friends", JSON.stringify(friendProfiles));
+        safeSetItem("cinetrack_cached_friends", JSON.stringify(friendProfiles));
 
         // Pending requests received
         const pending = allFriendships.filter(f => f.status === "pending" && f.addressee_id === targetUserId);
         setPendingRequests(pending);
-        localStorage.setItem("cinetrack_cached_pending", JSON.stringify(pending));
+        safeSetItem("cinetrack_cached_pending", JSON.stringify(pending));
       }
     } catch (err) {
       console.error("refreshFriends failed:", err);
@@ -159,8 +167,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 role: data.user.role
               };
               setProfile(userProfile);
-              localStorage.setItem("cinetrack_cached_user", JSON.stringify(data.user));
-              localStorage.setItem("cinetrack_cached_profile", JSON.stringify(userProfile));
+              safeSetItem("cinetrack_cached_user", JSON.stringify(data.user));
+              safeSetItem("cinetrack_cached_profile", JSON.stringify(userProfile));
               await refreshFriends(data.user.id);
             } else {
               setUser(null);
@@ -254,8 +262,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role: data.user.role
         };
         setProfile(userProfile);
-        localStorage.setItem("cinetrack_cached_user", JSON.stringify(data.user));
-        localStorage.setItem("cinetrack_cached_profile", JSON.stringify(userProfile));
+        safeSetItem("cinetrack_cached_user", JSON.stringify(data.user));
+        safeSetItem("cinetrack_cached_profile", JSON.stringify(userProfile));
         await refreshFriends(data.user.id);
         return { error: null };
       }
