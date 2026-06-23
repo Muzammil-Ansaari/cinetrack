@@ -2551,7 +2551,7 @@ function DashboardInner() {
             </div>
 
             {/* View List Selector for Unwatched */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
+            <div className="filter-area flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
               <span className="text-[8.5px] font-extrabold text-zinc-550 uppercase tracking-widest mr-1.5 flex items-center gap-1 flex-shrink-0">
                 <Users className="w-3.5 h-3.5 text-amber-400" /> View List:
               </span>
@@ -2575,7 +2575,7 @@ function DashboardInner() {
             </div>
 
             {/* Premium modern clickable capsule pill chips */}
-            <div className="flex flex-col gap-3.5 py-2.5 border-b border-zinc-900 pb-5 select-none">
+            <div className="filter-area flex flex-col gap-3.5 py-2.5 border-b border-zinc-900 pb-5 select-none">
               {/* Connection to My List pills (only when viewing friend's list) */}
               {unwatchedViewMode !== "my-list" && (
                 <div className="flex flex-wrap gap-1.5 items-center pb-2.5 border-b border-zinc-900/40">
@@ -2870,7 +2870,7 @@ function DashboardInner() {
             </div>
 
             {/* View List Selector for Watching */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
+            <div className="filter-area flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
               <span className="text-[8.5px] font-extrabold text-zinc-550 uppercase tracking-widest mr-1.5 flex items-center gap-1 flex-shrink-0">
                 <Users className="w-3.5 h-3.5 text-indigo-400" /> View List:
               </span>
@@ -3003,7 +3003,7 @@ function DashboardInner() {
             </div>
 
             {/* View List Selector for Upcoming */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
+            <div className="filter-area flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
               <span className="text-[8.5px] font-extrabold text-zinc-550 uppercase tracking-widest mr-1.5 flex items-center gap-1 flex-shrink-0">
                 <Users className="w-3.5 h-3.5 text-amber-400" /> View List:
               </span>
@@ -3027,7 +3027,7 @@ function DashboardInner() {
             </div>
 
             {/* Premium modern clickable capsule pill chips */}
-            <div className="flex flex-col gap-3.5 py-2.5 border-b border-zinc-900 pb-5 select-none">
+            <div className="filter-area flex flex-col gap-3.5 py-2.5 border-b border-zinc-900 pb-5 select-none">
               {/* Connection to My List pills (only when viewing friend's list) */}
               {upcomingViewMode !== "my-list" && (
                 <div className="flex flex-wrap gap-1.5 items-center pb-2.5 border-b border-zinc-900/40">
@@ -3288,7 +3288,7 @@ function DashboardInner() {
             </div>
 
             {/* View List Selector for Watched */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
+            <div className="filter-area flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
               <span className="text-[8.5px] font-extrabold text-zinc-550 uppercase tracking-widest mr-1.5 flex items-center gap-1 flex-shrink-0">
                 <Users className="w-3.5 h-3.5 text-emerald-400" /> View List:
               </span>
@@ -3312,7 +3312,7 @@ function DashboardInner() {
             </div>
 
             {/* Premium modern clickable capsule pill chips */}
-            <div className="flex flex-col gap-3.5 py-2.5 border-b border-zinc-900 pb-5 select-none">
+            <div className="filter-area flex flex-col gap-3.5 py-2.5 border-b border-zinc-900 pb-5 select-none">
               {/* Connection to My List pills (only when viewing friend's list) */}
               {watchedViewMode !== "my-list" && (
                 <div className="flex flex-wrap gap-1.5 items-center pb-2.5 border-b border-zinc-900/40">

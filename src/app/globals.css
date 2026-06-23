@@ -62,3 +62,9 @@ img {
 .animate-fade-in {
   animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
+
+/* Force semibold font weight on all filters (labels and buttons) */
+.filter-area span,
+.filter-area button {
+  font-weight: 600 !important;
+}
