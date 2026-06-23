@@ -124,7 +124,7 @@ export default function SettingsPanel({ user, refreshProfile, showToast }: Setti
       
       {/* Page Header */}
       <div className="flex flex-col gap-1 border-b border-zinc-900 pb-4">
-        <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
+        <h2 className="text-xl font-bold text-white flex items-center gap-2 tracking-tight">
           ⚙️ Account Settings
         </h2>
         <p className="text-xs text-zinc-500">

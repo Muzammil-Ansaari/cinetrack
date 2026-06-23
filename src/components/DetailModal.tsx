@@ -353,7 +353,7 @@ export default function DetailModal({ isOpen, onClose, tmdbId, category }: Detai
               <div className="flex-grow min-w-0 flex flex-col pt-3 md:pt-16">
                 
                 {/* Movie Header */}
-                <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-tight select-text">
+                <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight leading-tight select-text">
                   {data.title}
                 </h1>
 
@@ -390,7 +390,7 @@ export default function DetailModal({ isOpen, onClose, tmdbId, category }: Detai
                 {/* Synopsis */}
                 {data.overview && (
                   <div className="mt-4">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400">Synopsis</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Synopsis</h3>
                     <p className="text-xs text-zinc-450 leading-relaxed mt-1 select-text">
                       {data.overview}
                     </p>
@@ -406,7 +406,7 @@ export default function DetailModal({ isOpen, onClose, tmdbId, category }: Detai
                 {data.seasonsWithEpisodes && data.seasonsWithEpisodes.length > 0 && (
                   <div className="mt-8 border-t border-zinc-900 pt-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-black uppercase tracking-widest text-zinc-300">Season & Episode Explorer</h3>
+                      <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-300">Season & Episode Explorer</h3>
                       <span className="text-[10px] font-extrabold text-zinc-500 uppercase tracking-widest bg-zinc-900 px-2 py-1 rounded-lg border border-zinc-850">
                         {data.seasonsWithEpisodes.length} {data.seasonsWithEpisodes.length === 1 ? "Season" : "Seasons"} Available
                       </span>

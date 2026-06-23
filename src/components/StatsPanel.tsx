@@ -73,13 +73,13 @@ export default function StatsPanel({
               className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4 md:p-5 flex flex-col gap-3 hover:border-zinc-700/60 transition-colors shadow-sm"
             >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-500">{label}</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{label}</span>
                 <div className={`w-8 h-8 rounded-xl ${c.bg} border ${c.border} flex items-center justify-center ${c.text}`}>
                   {icon}
                 </div>
               </div>
               <div>
-                <div className="text-2xl font-black text-white tracking-tight leading-none">
+                <div className="text-2xl font-bold text-white tracking-tight leading-none">
                   {value}
                 </div>
                 <span className="text-[9.5px] text-zinc-500 font-medium mt-1 block">{sub}</span>

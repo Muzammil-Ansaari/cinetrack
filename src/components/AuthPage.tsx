@@ -162,7 +162,7 @@ export default function AuthPage() {
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 flex items-center justify-center shadow-xl shadow-indigo-500/20 mb-4">
             <Film className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
+          <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
             CineTrack
           </h1>
           <p className="text-[11px] text-zinc-500 font-semibold mt-1 tracking-wider uppercase">
@@ -229,7 +229,7 @@ export default function AuthPage() {
               {/* Forgot password header info */}
               {mode === "forgot" && (
                 <div className="mb-5 text-center space-y-1">
-                  <h2 className="text-lg font-black text-white tracking-tight">Reset Password</h2>
+                  <h2 className="text-lg font-bold text-white tracking-tight">Reset Password</h2>
                   <p className="text-xs text-zinc-400">
                     Enter your email to receive a password reset link.
                   </p>
@@ -239,7 +239,7 @@ export default function AuthPage() {
               {/* Reset password header info */}
               {mode === "reset" && (
                 <div className="mb-5 text-center space-y-1">
-                  <h2 className="text-lg font-black text-white tracking-tight">Set New Password</h2>
+                  <h2 className="text-lg font-bold text-white tracking-tight">Set New Password</h2>
                   <p className="text-xs text-zinc-400">
                     Choose a new secure password for your account.
                   </p>

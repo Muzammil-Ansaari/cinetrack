@@ -302,7 +302,7 @@ export default function MovieCard({
           <div className="w-full">
             <h3 
               onClick={onCardClick}
-              className="text-[13px] sm:text-[14px] font-extrabold text-zinc-100 select-all line-clamp-2 leading-tight cursor-pointer hover:text-indigo-400 transition-colors" 
+              className="text-[13px] sm:text-[14px] font-semibold text-zinc-100 select-all line-clamp-2 leading-tight cursor-pointer hover:text-indigo-400 transition-colors" 
               title="Click to view details, episodes & trailer"
             >
               {movie.title}

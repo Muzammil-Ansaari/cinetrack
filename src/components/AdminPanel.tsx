@@ -128,7 +128,7 @@ export default function AdminPanel() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-900 pb-4">
         <div>
-          <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2 tracking-tight">
             <Shield className="w-5 h-5 text-indigo-400" /> Administrative User Management
           </h2>
           <p className="text-[10px] text-zinc-500 mt-0.5">

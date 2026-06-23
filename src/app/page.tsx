@@ -145,7 +145,7 @@ function DashboardInner() {
     return (
       <div className="flex flex-col gap-3 select-none mt-2 relative group/row">
         <div className="flex items-center justify-between px-1">
-          <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-2">
             <span>{iconEmoji}</span> {title}
           </h3>
         </div>
@@ -243,7 +243,7 @@ function DashboardInner() {
                   <div>
                     <h4 
                       onClick={() => openDetailModal(item.id.toString(), item.category || "Movie")}
-                      className="text-[11.5px] font-extrabold text-zinc-100 line-clamp-2 leading-snug cursor-pointer hover:text-indigo-400 transition-colors"
+                      className="text-[11.5px] font-semibold text-zinc-100 line-clamp-2 leading-snug cursor-pointer hover:text-indigo-400 transition-colors"
                       title={item.title}
                     >
                       {item.title}
@@ -263,7 +263,7 @@ function DashboardInner() {
 
                   {/* Add / Tracked button */}
                   {itemTracked ? (
-                    <div className="w-full py-1.5 bg-zinc-900 border border-zinc-800 text-zinc-500 text-[9px] font-black uppercase tracking-wider rounded-xl flex items-center justify-center gap-1 select-none">
+                    <div className="w-full py-1.5 bg-zinc-900 border border-zinc-800 text-zinc-500 text-[9px] font-bold uppercase tracking-wider rounded-xl flex items-center justify-center gap-1 select-none">
                       <Check className="w-3 h-3 text-indigo-400" /> Tracked
                     </div>
                   ) : (
@@ -284,7 +284,7 @@ function DashboardInner() {
                         };
                         await handleAddMovie(movieObj, false);
                       }}
-                      className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95 border border-indigo-500/20"
+                      className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer active:scale-95 border border-indigo-500/20"
                     >
                       <Plus className="w-3 h-3" /> Add to List
                     </button>
@@ -2529,7 +2529,7 @@ function DashboardInner() {
             {/* Queue Header Panel */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-900 pb-4 select-none">
               <div>
-                <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2 tracking-tight">
                   🍿 Unwatched Queue
                 </h2>
                 <p className="text-[10px] text-zinc-500 mt-0.5">Curated logs of titles to enjoy in the future.</p>
@@ -2848,7 +2848,7 @@ function DashboardInner() {
             {/* Queue Header Panel */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-900 pb-4 select-none">
               <div>
-                <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2 tracking-tight">
                   📺 Currently Watching
                 </h2>
                 <p className="text-[10px] text-zinc-500 mt-0.5">Manage and track titles you are currently enjoying.</p>
@@ -2981,7 +2981,7 @@ function DashboardInner() {
             {/* Queue Header Panel */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-900 pb-4 select-none">
               <div>
-                <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2 tracking-tight">
                   📅 Upcoming Watchlist
                 </h2>
                 <p className="text-[10px] text-zinc-500 mt-0.5">Track and sync future release dates logged by you or your friends.</p>
@@ -3266,7 +3266,7 @@ function DashboardInner() {
             {/* Library Header Panel */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-900 pb-4 select-none">
               <div>
-                <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2 tracking-tight">
                   🏆 Watched Collection
                 </h2>
                 <p className="text-[10px] text-zinc-500 mt-0.5">Trophy shelf containing your rated films and series thoughts.</p>
@@ -3551,7 +3551,7 @@ function DashboardInner() {
             {/* Library Header Panel */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-900 pb-4 select-none">
               <div>
-                <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2 tracking-tight">
                   👎 Not Interested
                 </h2>
                 <p className="text-[10px] text-zinc-500 mt-0.5">Movies and TV shows you have personally declined from your main queue.</p>
@@ -3617,7 +3617,7 @@ function DashboardInner() {
             {/* Search Tab Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-900 pb-4 select-none">
               <div>
-                <h2 className="text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2 tracking-tight">
                   🔍 Search Results for &ldquo;{searchTabQuery}&rdquo;
                 </h2>
                 <p className="text-[10px] text-zinc-500 mt-0.5">Showing matching global database items from TMDB.</p>
@@ -3717,7 +3717,7 @@ function DashboardInner() {
                             <div>
                               <h3 
                                 onClick={() => openDetailModal(movie.id.toString(), movie.category || "Movie")}
-                                className="text-sm font-black text-zinc-100 line-clamp-2 leading-tight cursor-pointer hover:text-indigo-400 transition-colors"
+                                className="text-sm font-semibold text-zinc-100 line-clamp-2 leading-tight cursor-pointer hover:text-indigo-400 transition-colors"
                                 title="Click to view details, episodes & trailer"
                               >
                                 {movie.title}

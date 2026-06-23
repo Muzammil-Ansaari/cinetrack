@@ -351,7 +351,7 @@ export default function BulkImportModal({
               </button>
             )}
             <Database className="w-5 h-5 text-indigo-400" />
-            <h3 className="text-sm font-black text-white">
+            <h3 className="text-sm font-bold text-white">
               {step === "input" && "Bulk Import"}
               {step === "searching" && "Searching TMDB…"}
               {step === "review" && "Review Results"}
