@@ -131,7 +131,16 @@ Strict Guidelines:
     if (!response.ok) {
       const errText = await response.text();
       console.error("Gemini API Error:", errText);
-      throw new Error(`Gemini API responded with status ${response.status}`);
+      if (response.status === 429) {
+        return NextResponse.json(
+          { error: "AI is currently busy due to rate limits. Please wait a moment and try again." },
+          { status: 429 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Could not contact the AI service. Please try again later." },
+        { status: 500 }
+      );
     }
 
     const data = await response.json();
@@ -141,7 +150,7 @@ Strict Guidelines:
   } catch (error: any) {
     console.error("[AI API ERROR]:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to communicate with the Gemini AI service." },
+      { error: "An unexpected error occurred while communicating with the AI. Please try again." },
       { status: 500 }
     );
   }
