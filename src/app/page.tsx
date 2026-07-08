@@ -27,7 +27,8 @@ import {
   Settings,
   PlayCircle,
   BookmarkPlus,
-  ArrowRight
+  ArrowRight,
+  Sparkles
 } from "lucide-react";
 import { Movie, TMDBMovie } from "@/types";
 // Supabase deprecated, utilizing native MongoDB operations
@@ -40,6 +41,7 @@ import { useAuth } from "@/lib/AuthContext";
 import BulkImportModal from "@/components/BulkImportModal";
 import CustomMovieModal from "@/components/CustomMovieModal";
 import DetailModal from "@/components/DetailModal";
+import AIChatPanel from "@/components/AIChatPanel";
 import AdminPanel from "@/components/AdminPanel";
 import SettingsPanel from "@/components/SettingsPanel";
 import Pagination from "@/components/Pagination";
@@ -84,6 +86,7 @@ function DashboardInner() {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailModalTmdbId, setDetailModalTmdbId] = useState("");
   const [detailModalCategory, setDetailModalCategory] = useState("Movie");
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
 
   const openDetailModal = useCallback((tmdbId: string, category: string) => {
     setDetailModalTmdbId(tmdbId);
@@ -2266,6 +2269,32 @@ function DashboardInner() {
 
   const totalWatchedRuntime = baseMyWatchedList.reduce((acc, curr) => acc + (curr.runtime || 0), 0);
 
+  const myMoviesForAI = useMemo(() => {
+    if (!user) return [];
+    return movies
+      .map((m) => {
+        const isOwner = m.user_id === user.id;
+        const uWatched = isOwner ? !!m.watched : !!isMovieWatchedByUser(m, myName);
+        const uWatching = isOwner ? !!m.watching : !!isMovieWatchingByUser(m, myName);
+        const uDeclined = isOwner ? !!m.declined : !!isMovieDeclinedByUser(m, myName);
+        
+        if (!isOwner && !uWatched && !uWatching && !uDeclined) {
+          return null;
+        }
+
+        return {
+          ...m,
+          watched: uWatched,
+          watching: uWatching,
+          declined: uDeclined,
+          rating: isOwner ? m.rating : null,
+          review: isOwner ? m.review : null,
+          watched_at: isOwner ? m.watched_at : null,
+        };
+      })
+      .filter(Boolean) as Movie[];
+  }, [movies, user, myName, isMovieWatchedByUser, isMovieWatchingByUser, isMovieDeclinedByUser]);
+
   return (
     <div className="w-full max-w-full overflow-x-hidden bg-zinc-950 min-h-screen text-zinc-100 flex flex-col antialiased pb-20 md:pb-0">
       {/* Decorative Glow Bubbles */}
@@ -4033,6 +4062,30 @@ function DashboardInner() {
         onClose={() => setDetailModalOpen(false)}
         tmdbId={detailModalTmdbId}
         category={detailModalCategory}
+      />
+
+      {/* Floating AI Chat Trigger Button */}
+      {user && (
+        <button
+          id="ai-chat-trigger"
+          onClick={() => setIsAIChatOpen(true)}
+          className="fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white flex items-center justify-center shadow-[0_4px_20px_rgba(99,102,241,0.4)] hover:shadow-[0_4px_25px_rgba(99,102,241,0.6)] cursor-pointer hover:scale-110 active:scale-95 transition-all duration-300 group"
+          title="Open CineTrack AI Chat Assistant"
+        >
+          <Sparkles className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" />
+          <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-indigo-500 border border-zinc-950 text-[7px] font-black text-white items-center justify-center">AI</span>
+          </span>
+        </button>
+      )}
+
+      {/* AI Chat Panel Drawer */}
+      <AIChatPanel
+        isOpen={isAIChatOpen}
+        onClose={() => setIsAIChatOpen(false)}
+        movies={myMoviesForAI}
+        onSearchMovie={(title) => handleSearchSubmit(title, 1)}
       />
     </div>
   );
