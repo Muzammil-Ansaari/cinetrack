@@ -43,6 +43,8 @@ export async function POST(request: NextRequest) {
     const watching = userMoviesList.filter((m: any) => m.watching);
     const declined = userMoviesList.filter((m: any) => m.declined);
 
+    console.log(`[AI ROUTE DEBUG] Total received: ${userMoviesList.length} | Watched: ${watched.length} | Unwatched: ${unwatched.length} | Watching: ${watching.length} | Declined: ${declined.length}`);
+
     // Sort watched by watched_at or created_at descending
     watched.sort((a: any, b: any) => {
       const timeA = a.watched_at 

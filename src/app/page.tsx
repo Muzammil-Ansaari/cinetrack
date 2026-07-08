@@ -2273,12 +2273,12 @@ function DashboardInner() {
     if (!user) return [];
     return movies
       .map((m) => {
-        const isOwner = m.user_id === user.id;
-        const uWatched = isOwner ? !!m.watched : !!isMovieWatchedByUser(m, myName);
-        const uWatching = isOwner ? !!m.watching : !!isMovieWatchingByUser(m, myName);
-        const uDeclined = isOwner ? !!m.declined : !!isMovieDeclinedByUser(m, myName);
+        const uWatched = !!isMovieWatchedByUser(m, myName);
+        const uWatching = !!isMovieWatchingByUser(m, myName);
+        const uDeclined = !!isMovieDeclinedByUser(m, myName);
+        const uOwned = !!isMovieOwnedByUser(m, myName);
         
-        if (!isOwner && !uWatched && !uWatching && !uDeclined) {
+        if (!uOwned && !uWatched && !uWatching && !uDeclined) {
           return null;
         }
 
@@ -2287,13 +2287,13 @@ function DashboardInner() {
           watched: uWatched,
           watching: uWatching,
           declined: uDeclined,
-          rating: isOwner ? m.rating : null,
-          review: isOwner ? m.review : null,
-          watched_at: isOwner ? m.watched_at : null,
+          rating: uOwned ? m.rating : null,
+          review: uOwned ? m.review : null,
+          watched_at: uOwned ? m.watched_at : null,
         };
       })
       .filter(Boolean) as Movie[];
-  }, [movies, user, myName, isMovieWatchedByUser, isMovieWatchingByUser, isMovieDeclinedByUser]);
+  }, [movies, user, myName, isMovieWatchedByUser, isMovieWatchingByUser, isMovieDeclinedByUser, isMovieOwnedByUser]);
 
   return (
     <div className="w-full max-w-full overflow-x-hidden bg-zinc-950 min-h-screen text-zinc-100 flex flex-col antialiased pb-20 md:pb-0">
