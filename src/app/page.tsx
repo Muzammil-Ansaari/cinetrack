@@ -26,7 +26,8 @@ import {
   Shield,
   Settings,
   PlayCircle,
-  BookmarkPlus
+  BookmarkPlus,
+  ArrowRight
 } from "lucide-react";
 import { Movie, TMDBMovie } from "@/types";
 // Supabase deprecated, utilizing native MongoDB operations
@@ -320,6 +321,32 @@ function DashboardInner() {
     } catch (e) {
       console.error("Full Search tab error:", e);
       setToast({ message: "Could not retrieve search results.", type: "warning" });
+    } finally {
+      setSearchTabLoading(false);
+    }
+  }, []);
+
+  const handleViewActorFilmography = useCallback(async (personId: string, actorName: string) => {
+    setSearchTabQuery(`Actor: ${actorName}`);
+    setSearchTabPage(1);
+    setSearchTabLoading(true);
+    setActiveTab("search_results");
+    
+    try {
+      const res = await fetch(`/api/tmdb?personId=${encodeURIComponent(personId)}`);
+      if (!res.ok) throw new Error("Combined credits fetch failed");
+      const data = await res.json();
+      
+      if (data.results) {
+        setSearchTabResults(data.results);
+        setSearchTabTotalPages(1); // Combined credits are fetched all at once
+      } else {
+        setSearchTabResults([]);
+        setSearchTabTotalPages(1);
+      }
+    } catch (e) {
+      console.error("View actor filmography error:", e);
+      setToast({ message: "Could not retrieve actor filmography.", type: "warning" });
     } finally {
       setSearchTabLoading(false);
     }
@@ -619,11 +646,6 @@ function DashboardInner() {
       });
 
       setMovies(normalizedMovies);
-      try {
-        localStorage.setItem("cinetrack_movies_cache", JSON.stringify(normalizedMovies));
-      } catch (cacheError) {
-        console.warn("CineTrack: Failed to cache movies to localStorage (quota exceeded)", cacheError);
-      }
     } catch (e) {
       console.error("CineTrack [MongoDB GET Error]:", e);
     }
@@ -639,20 +661,7 @@ function DashboardInner() {
   useEffect(() => {
     hasRunBackgroundChecks.current = false;
     async function loadData() {
-      // Optimistically load from localStorage cache first so dashboard opens with content instantly
-      const cached = localStorage.getItem("cinetrack_movies_cache");
-      if (cached) {
-        try {
-          setMovies(JSON.parse(cached));
-        } catch (e) {
-          console.error("Failed parsing movies cache:", e);
-        }
-      }
-
-      // If we don't have cached movies, we show a nice skeleton spinner during the first load
-      if (!cached) {
-        setLoading(true);
-      }
+      setLoading(true);
 
       try {
         if (user) {
@@ -688,11 +697,8 @@ function DashboardInner() {
             })
             .catch(err => console.warn("CineTrack Migration Background Error:", err));
         } else {
-          const localData = localStorage.getItem(`cinetrack_movies_local`);
-          setMovies(localData ? JSON.parse(localData) : []);
-          
-          const localActs = localStorage.getItem("cinetrack_activities");
-          setActivities(localActs ? JSON.parse(localActs) : []);
+          setMovies([]);
+          setActivities([]);
         }
       } catch (err: any) {
         console.error("Failed to load movies or history:", err);
@@ -737,15 +743,6 @@ function DashboardInner() {
   // Save changes helper (synces back locally if Supabase is disabled)
   const saveMoviesState = async (newMovies: Movie[]) => {
     setMovies(newMovies);
-    try {
-      if (user) {
-        localStorage.setItem("cinetrack_movies_cache", JSON.stringify(newMovies));
-      } else {
-        localStorage.setItem("cinetrack_movies_local", JSON.stringify(newMovies));
-      }
-    } catch (e) {
-      console.warn("CineTrack: Failed to save movies to localStorage (quota exceeded)", e);
-    }
   };
 
   // Add a new activity log
@@ -2471,6 +2468,7 @@ function DashboardInner() {
               isTracked={isTracked} 
               onSearchSubmit={(q) => handleSearchSubmit(q, 1)}
               onOpenDetail={openDetailModal}
+              onViewActorFilmography={handleViewActorFilmography}
             />
           </div>
           <button
@@ -3683,6 +3681,7 @@ function DashboardInner() {
                       ? `https://image.tmdb.org/t/p/w185${movie.poster_path}`
                       : "";
                     const movieTracked = isTracked(movie.id.toString());
+                    const isPerson = movie.media_type === "person";
 
                     return (
                       <article key={movie.id} className="flex flex-col gap-3 p-3 bg-zinc-900 border border-zinc-800/80 rounded-2xl hover:border-zinc-750 hover:bg-zinc-900/90 transition-all duration-300 shadow-sm group">
@@ -3690,9 +3689,15 @@ function DashboardInner() {
                         <div className="flex gap-3 xs:gap-4 items-start">
                           {/* Poster Thumbnail */}
                           <div 
-                            onClick={() => openDetailModal(movie.id.toString(), movie.category || "Movie")}
+                            onClick={() => {
+                              if (isPerson) {
+                                handleViewActorFilmography(movie.id.toString(), movie.title);
+                              } else {
+                                openDetailModal(movie.id.toString(), movie.category || "Movie");
+                              }
+                            }}
                             className="w-[84px] h-[120px] bg-zinc-950 rounded-xl overflow-hidden border border-zinc-850 shadow-sm flex-shrink-0 relative select-none flex items-center justify-center cursor-pointer hover:border-indigo-500/50 hover:brightness-110 active:scale-95 transition-all"
-                            title="Click to view details, episodes & trailer"
+                            title={isPerson ? "Click to view filmography" : "Click to view details, episodes & trailer"}
                           >
                             {posterUrl ? (
                               <>
@@ -3716,9 +3721,15 @@ function DashboardInner() {
                           <div className="flex-grow min-w-0 flex flex-col justify-between py-0.5">
                             <div>
                               <h3 
-                                onClick={() => openDetailModal(movie.id.toString(), movie.category || "Movie")}
+                                onClick={() => {
+                                  if (isPerson) {
+                                    handleViewActorFilmography(movie.id.toString(), movie.title);
+                                  } else {
+                                    openDetailModal(movie.id.toString(), movie.category || "Movie");
+                                  }
+                                }}
                                 className="text-sm font-semibold text-zinc-100 line-clamp-2 leading-tight cursor-pointer hover:text-indigo-400 transition-colors"
-                                title="Click to view details, episodes & trailer"
+                                title={isPerson ? "Click to view filmography" : "Click to view details, episodes & trailer"}
                               >
                                 {movie.title}
                               </h3>
@@ -3732,18 +3743,24 @@ function DashboardInner() {
                                       ? "bg-blue-500/10 text-blue-400 border border-blue-500/10"
                                       : movie.category === "Animated Movie"
                                       ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/10"
+                                      : movie.category === "Actor"
+                                      ? "bg-amber-500/10 text-amber-400 border border-amber-500/10 animate-pulse"
                                       : "bg-zinc-800 text-zinc-400 border border-zinc-700/50"
                                   }`}>
                                     {movie.category}
                                   </span>
                                 )}
-                                <span>{displayDate}</span>
-                                <span className="w-0.5 h-0.5 rounded-full bg-zinc-700" />
-                                <span className="text-amber-500 font-semibold">⭐ {rating}</span>
+                                {!isPerson && (
+                                  <>
+                                    <span>{displayDate}</span>
+                                    <span className="w-0.5 h-0.5 rounded-full bg-zinc-700" />
+                                    <span className="text-amber-500 font-semibold">⭐ {rating}</span>
+                                  </>
+                                )}
                               </div>
 
                               {/* Live Metadata Badges for TV Shows / Anime */}
-                              {(movie.category === "TV Show" || movie.category === "Anime") && movie.seasons && (
+                              {!isPerson && (movie.category === "TV Show" || movie.category === "Anime") && movie.seasons && (
                                 <div className="mt-2 flex flex-wrap gap-1.5 text-[8.5px] font-extrabold select-none">
                                   <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-900 text-indigo-400">
                                     ⏱️ {movie.runtime ? `${Math.round(movie.runtime / 60)}h` : "N/A"}
@@ -3758,7 +3775,7 @@ function DashboardInner() {
                               )}
 
                               {/* Live Metadata Badge for Movies */}
-                              {(movie.category === "Movie" || movie.category === "Animated Movie") && movie.runtime && (
+                              {!isPerson && (movie.category === "Movie" || movie.category === "Animated Movie") && movie.runtime && (
                                 <div className="mt-2 flex flex-wrap gap-1.5 text-[8.5px] font-extrabold select-none">
                                   <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-900 text-indigo-400">
                                     ⏱️ {movie.runtime ? `${Math.round(movie.runtime / 60)}h ${movie.runtime % 60}m` : "N/A"}
@@ -3777,7 +3794,15 @@ function DashboardInner() {
 
                         {/* Second Row: Action Buttons */}
                         <div className="flex items-center gap-1.5 select-none w-full">
-                          {movieTracked ? (
+                          {isPerson ? (
+                            <button
+                              onClick={() => handleViewActorFilmography(movie.id.toString(), movie.title)}
+                              className="w-full h-[28px] inline-flex items-center justify-center bg-indigo-650 hover:bg-indigo-500 border border-indigo-500 text-white rounded-lg active:scale-95 transition-all cursor-pointer shadow-sm text-xs font-bold gap-1"
+                            >
+                              <span>View Filmography</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          ) : movieTracked ? (
                             <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-zinc-950 text-zinc-400 text-[10px] font-bold rounded-xl border border-zinc-800/80 shadow-inner select-none w-full justify-center">
                               <Trophy className="w-3.5 h-3.5 text-emerald-500" /> Tracked
                             </span>
@@ -3822,25 +3847,27 @@ function DashboardInner() {
                 </div>
 
                 {/* Pagination footer */}
-                <div className="flex items-center justify-center gap-3 border-t border-zinc-900 pt-6 mt-4 select-none">
-                  <button
-                    disabled={searchTabPage === 1 || searchTabLoading}
-                    onClick={() => handleSearchSubmit(searchTabQuery, searchTabPage - 1)}
-                    className="px-3.5 py-1.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 text-zinc-400 hover:text-zinc-250 text-[10px] font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center cursor-pointer"
-                  >
-                    ◀ Prev
-                  </button>
-                  <span className="text-[10px] font-bold text-zinc-500 bg-zinc-950 border border-zinc-900 px-3 py-1.5 rounded-xl">
-                    Page <strong className="text-zinc-300">{searchTabPage}</strong> of <strong className="text-zinc-300">{searchTabTotalPages}</strong>
-                  </span>
-                  <button
-                    disabled={searchTabPage === searchTabTotalPages || searchTabLoading}
-                    onClick={() => handleSearchSubmit(searchTabQuery, searchTabPage + 1)}
-                    className="px-3.5 py-1.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 text-zinc-400 hover:text-zinc-250 text-[10px] font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center cursor-pointer"
-                  >
-                    Next ▶
-                  </button>
-                </div>
+                {searchTabTotalPages > 1 && (
+                  <div className="flex items-center justify-center gap-3 border-t border-zinc-900 pt-6 mt-4 select-none">
+                    <button
+                      disabled={searchTabPage === 1 || searchTabLoading}
+                      onClick={() => handleSearchSubmit(searchTabQuery, searchTabPage - 1)}
+                      className="px-3.5 py-1.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 text-zinc-400 hover:text-zinc-250 text-[10px] font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center cursor-pointer"
+                    >
+                      ◀ Prev
+                    </button>
+                    <span className="text-[10px] font-bold text-zinc-500 bg-zinc-950 border border-zinc-900 px-3 py-1.5 rounded-xl">
+                      Page <strong className="text-zinc-300">{searchTabPage}</strong> of <strong className="text-zinc-300">{searchTabTotalPages}</strong>
+                    </span>
+                    <button
+                      disabled={searchTabPage === searchTabTotalPages || searchTabLoading}
+                      onClick={() => handleSearchSubmit(searchTabQuery, searchTabPage + 1)}
+                      className="px-3.5 py-1.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700/80 text-zinc-400 hover:text-zinc-250 text-[10px] font-bold rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center cursor-pointer"
+                    >
+                      Next ▶
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

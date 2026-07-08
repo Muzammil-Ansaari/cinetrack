@@ -9,9 +9,10 @@ interface SearchBarProps {
   isTracked: (tmdbId: string) => boolean;
   onSearchSubmit?: (query: string) => void;
   onOpenDetail?: (id: string, category: string) => void;
+  onViewActorFilmography?: (personId: string, name: string) => void;
 }
 
-export default function SearchBar({ onAddMovie, isTracked, onSearchSubmit, onOpenDetail }: SearchBarProps) {
+export default function SearchBar({ onAddMovie, isTracked, onSearchSubmit, onOpenDetail, onViewActorFilmography }: SearchBarProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TMDBMovie[]>([]);
   const [loading, setLoading] = useState(false);
@@ -178,14 +179,23 @@ export default function SearchBar({ onAddMovie, isTracked, onSearchSubmit, onOpe
                 : "";
               const movieTracked = isTracked(movie.id.toString());
 
+              const isPerson = movie.media_type === "person";
+
               return (
                 <div
                   key={movie.id}
                   className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 hover:bg-zinc-900/60 transition-colors"
                 >
-                  {/* First Row: Poster + Info (Clickable to open details modal) */}
+                  {/* First Row: Poster + Info (Clickable to open details or load actor credits) */}
                   <div 
-                    onClick={() => onOpenDetail?.(movie.id.toString(), movie.category || "Movie")}
+                    onClick={() => {
+                      if (isPerson) {
+                        onViewActorFilmography?.(movie.id.toString(), movie.title);
+                        setOpen(false);
+                      } else {
+                        onOpenDetail?.(movie.id.toString(), movie.category || "Movie");
+                      }
+                    }}
                     className="flex items-start gap-3 sm:gap-4 flex-grow min-w-0 cursor-pointer group/item hover:opacity-85 transition-opacity"
                   >
                     {/* Poster Thumbnail */}
@@ -229,27 +239,33 @@ export default function SearchBar({ onAddMovie, isTracked, onSearchSubmit, onOpe
                               ? "bg-blue-500/10 text-blue-400 border border-blue-500/10"
                               : movie.category === "Animated Movie"
                               ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/10"
+                              : movie.category === "Actor"
+                              ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 animate-pulse"
                               : "bg-zinc-800 text-zinc-400 border border-zinc-700/40"
                           }`}>
                             {movie.category}
                           </span>
                         )}
-                        <span>{year}</span>
-                        <span className="w-0.5 h-0.5 rounded-full bg-zinc-700" />
-                        <span className="text-amber-500">⭐ {rating}</span>
-                        {movie.seasons && (
+                        {!isPerson && (
+                          <>
+                            <span>{year}</span>
+                            <span className="w-0.5 h-0.5 rounded-full bg-zinc-700" />
+                            <span className="text-amber-500">⭐ {rating}</span>
+                          </>
+                        )}
+                        {!isPerson && movie.seasons && (
                           <>
                             <span className="w-0.5 h-0.5 rounded-full bg-zinc-700" />
                             <span className="text-zinc-400 font-semibold">{movie.seasons} {movie.seasons === 1 ? "season" : "seasons"}</span>
                           </>
                         )}
-                        {movie.episodes && (
+                        {!isPerson && movie.episodes && (
                           <>
                             <span className="w-0.5 h-0.5 rounded-full bg-zinc-700" />
                             <span className="text-zinc-450 font-semibold">{movie.episodes} eps</span>
                           </>
                         )}
-                        {movie.runtime && (
+                        {!isPerson && movie.runtime && (
                           <>
                             <span className="w-0.5 h-0.5 rounded-full bg-zinc-700" />
                             <span className="text-zinc-450 font-semibold">
@@ -257,13 +273,28 @@ export default function SearchBar({ onAddMovie, isTracked, onSearchSubmit, onOpe
                             </span>
                           </>
                         )}
+                        {isPerson && (
+                          <span className="text-zinc-450 font-semibold">Actor / Actress</span>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   {/* Action Buttons */}
                   <div className="flex items-center gap-1.5 w-auto mt-2 sm:mt-0 select-none pl-12 sm:pl-0 shrink-0">
-                    {movieTracked ? (
+                    {isPerson ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onViewActorFilmography?.(movie.id.toString(), movie.title);
+                          setOpen(false);
+                        }}
+                        className="h-[28px] px-3 inline-flex items-center justify-center bg-indigo-650 hover:bg-indigo-500 border border-indigo-500 text-white rounded-lg active:scale-95 transition-all cursor-pointer shadow-sm text-[10px] font-bold gap-1"
+                      >
+                        <span>View Movies</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    ) : movieTracked ? (
                       <span className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 bg-zinc-900/80 border border-zinc-800 text-zinc-500 text-[10px] font-semibold rounded-lg select-none">
                         <Check className="w-3 h-3 text-emerald-500" /> Tracked
                       </span>

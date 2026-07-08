@@ -58,6 +58,8 @@ export async function GET(request: NextRequest) {
       );
 
       const movies = await collection.find({
+        migration_attempted: { $ne: true },
+        tmdb_id: { $exists: true, $not: /^custom-/ },
         $or: [
           { release_date: { $exists: false } },
           { release_date: null },
@@ -78,27 +80,25 @@ export async function GET(request: NextRequest) {
           const isTv = movie.category === "TV Show" || movie.category === "Anime";
           const mediaType = isTv ? "tv" : "movie";
           const res = await fetch(`https://api.themoviedb.org/3/${mediaType}/${movie.tmdb_id}?api_key=${TMDB_API_KEY}&language=en-US&append_to_response=credits`);
+          
+          const updateDoc: any = { migration_attempted: true };
           if (res.ok) {
             const data = await res.json();
             const releaseDate = data.release_date || data.first_air_date || null;
             const castList = data.credits?.cast?.slice(0, 15).map((c: any) => c.name).join(", ") || null;
             
-            const updateDoc: any = {};
             if (releaseDate && !movie.release_date) {
               updateDoc.release_date = releaseDate;
             }
             if (castList && !movie.cast) {
               updateDoc.cast = castList;
             }
-
-            if (Object.keys(updateDoc).length > 0) {
-              await collection.updateOne(
-                { _id: movie._id },
-                { $set: updateDoc }
-              );
-              updated.push({ title: movie.title, ...updateDoc });
-            }
+            updated.push({ title: movie.title, ...updateDoc });
           }
+          await collection.updateOne(
+            { _id: movie._id },
+            { $set: updateDoc }
+          );
         } catch (err: any) {
           console.error(`Failed migrating details/cast for ${movie.title}:`, err);
         }

@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("query");
   const movieId = searchParams.get("movieId");
+  const personId = searchParams.get("personId");
   const mediaType = searchParams.get("mediaType") || "movie"; // 'movie' or 'tv'
   const trending = searchParams.get("trending");
   const page = searchParams.get("page") || "1";
@@ -59,6 +60,51 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Mode 0: Actor combined credits (filmography)
+    if (personId) {
+      const response = await fetchWithTimeout(
+        `https://api.tmdb.org/3/person/${encodeURIComponent(personId)}/combined_credits?api_key=${TMDB_API_KEY}&language=en-US`,
+        {},
+        8000
+      );
+      if (!response.ok) throw new Error("TMDB combined credits fetch failed");
+      const data = await response.json();
+      
+      let castResults = data.cast || [];
+      // Sort by popularity descending
+      castResults.sort((a: any, b: any) => (b.popularity || 0) - (a.popularity || 0));
+      // Keep only items with poster paths for better visual display, all of them
+      castResults = castResults.filter((item: any) => item.poster_path);
+
+      // Deduplicate by TMDB ID to prevent duplicate key console warnings
+      const seen = new Set();
+      castResults = castResults.filter((item: any) => {
+        if (!item.id || seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+
+      const mappedResults = castResults.map((item: any) => {
+        const category = getMediaCategory(item);
+        return {
+          id: item.id,
+          title: item.title || item.name,
+          poster_path: item.poster_path,
+          backdrop_path: item.backdrop_path,
+          release_date: item.release_date || item.first_air_date || "",
+          vote_average: item.vote_average,
+          overview: item.overview || "",
+          media_type: item.media_type,
+          category,
+          seasons: null,
+          episodes: null,
+          runtime: item.media_type === "tv" ? 45 : 120, // default runtime
+        };
+      });
+
+      return NextResponse.json({ results: mappedResults });
+    }
+
     // Mode 1: Search Movies & TV Shows (Multi-Search)
     if (query) {
       const response = await fetchWithTimeout(
@@ -71,14 +117,31 @@ export async function GET(request: NextRequest) {
       if (!response.ok) throw new Error("TMDB search failed");
       const data = await response.json();
       
-      // Filter out non-media items and assign custom categories
+      // Filter out non-media items and assign custom categories (includes person now)
       const rawResults = (data.results || [])
-        .filter((item: any) => item.media_type === "movie" || item.media_type === "tv")
-        .slice(0, 12);
+        .filter((item: any) => item.media_type === "movie" || item.media_type === "tv" || item.media_type === "person")
+        .slice(0, 15);
 
       const today = new Date().toISOString().split("T")[0];
       const enrichedResults = await Promise.all(
         rawResults.map(async (item: any) => {
+          if (item.media_type === "person") {
+            return {
+              id: item.id,
+              title: item.name,
+              poster_path: item.profile_path,
+              backdrop_path: null,
+              release_date: "",
+              vote_average: 0,
+              overview: `Actor • Known for: ${item.known_for?.map((kf: any) => kf.title || kf.name).filter(Boolean).join(", ") || ""}`,
+              media_type: "person",
+              category: "Actor",
+              seasons: null,
+              episodes: null,
+              runtime: 0,
+            };
+          }
+
           const category = getMediaCategory(item);
           const isTv = item.media_type === "tv" || item.first_air_date !== undefined;
           
